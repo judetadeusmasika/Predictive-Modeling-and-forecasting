@@ -1,0 +1,394 @@
+---
+title: "statistics"
+output: word_document
+date: "2023-11-15"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+```{r}
+library(tidyverse)
+library(ggplot2)
+library(haven)
+library(stargazer)
+set.seed(0)
+##Qn 1.
+##a) Simulations
+# Number of simulations
+simulations <- 1000
+# Sample size
+N <- 100
+# Degrees of freedom for chi-squared distribution
+df <- 4
+# The Function to generate random samples
+random_samples <- function() {
+# Generate X_i from chi-squared distribution
+X <- rchisq(N, df)
+# Generate errors from standard normal distribution
+e <- rnorm(N, 0, 1)
+# relationship equation
+Y <- 1.3 + 0.5 * X + 0.7 * X^2 + e
+# Return a data frame
+  return(data.frame(X = X, Y = Y))
+}
+# Simulate 1000 random samples
+simulated_data <- replicate(simulations, random_samples(), simplify = FALSE)
+##First simulations data
+head(simulated_data[[1]])
+##b) parameter estimates using the Ordinary Least Squares
+##Function to estimate parameters using OLS
+estimate_parameters <- function(data) {
+  # Fit OLS model
+  model <- lm(Y ~ poly(X, degree = 2), data = data)
+  # Return coefficients
+  return(coef(model))
+}
+# Apply the function to each simulated sample
+parameter_estimates <- lapply(simulated_data, estimate_parameters)
+# Display parameter estimates for the first simulation
+parameter_estimates[[1]]
+```
+144.58577 represents the change in the predicted value of Y for a unit change in X, 43.38903 represents the change in the predicted value of Y for a unit change in X^2. Thus, the model suggests a quadratic relationship between X and Y,and the estimated coefficients give you the specific impact of X and X^2 on the predicted value of Y.
+```{r}
+##c) Histogram
+##parameter_estimates is a list containing OLS estimates for each simulation
+# True parameter values
+true_intercept <- 1.3
+true_beta1 <- 0.5
+true_beta2 <- 0.7
+# Plot histograms
+par(mfrow = c(1, 3))  # Arrange plots in one row with three columns
+# Histogram for Intercept
+hist(parameter_estimates[[1]]["(Intercept)"], main = "Intercept", xlab = "Estimate", col = "lightblue", border = "black")
+abline(v = true_intercept, col = "red", lwd = 2)
+# Histogram for beta1
+hist(parameter_estimates[[1]]["poly(X, degree = 2)1"], main = "Beta1", xlab = "Estimate", col = "lightgreen", border = "black")
+abline(v = true_beta1, col = "red", lwd = 2)
+# Histogram for beta2
+hist(parameter_estimates[[1]]["poly(X, degree = 2)2"], main = "Beta2", xlab = "Estimate", col = "lightcoral", border = "black")
+abline(v = true_beta2, col = "red", lwd = 2)
+```
+
+
+```{r}
+##d) sample mean
+#parameter_estimates is a list of vectors
+#Convert it to a matrix
+parameter_matrix <- do.call(cbind, parameter_estimates)
+# Display the sample mean estimates
+mean_estimates <- colMeans(parameter_matrix)
+print("Estimated Parameters:")
+head(mean_estimates)
+# True parameter values
+true_parameters <- c(1.3, 0.5, 0.7)
+# Display the true parameters and the sample mean estimates
+print("True Parameters:")
+print(true_parameters)
+```
+If the true parameters and the estimated parameters are close to each other,
+then the OLS estimation method is unbiased, otherwise, it is biased. From the results, the OLS estimation method seems to be biased since the true parameters are very far from the estimated parameters.
+
+```{r}
+##e) Hypothesis
+# Number of simulations
+simulations <- 1000
+# Create a function to generate t-statistics for each sample
+generate_t_statistics <- function(sample_data) {
+  # Fit a linear model
+  model <- lm(Y ~ X, data = sample_data)
+  # Calculate t-statistic for beta_1
+  t_stat <- (coef(model)["X"] - 0.5) / sqrt(vcov(model)["X", "X"])
+  return(t_stat)
+}
+# Generate t-statistics for each sample
+t_statistics <- replicate(simulations, generate_t_statistics(random_samples()))
+# Plot histogram of t-statistics
+hist(t_statistics, col = "lightblue", main = "Histogram of t-Statistics", 
+     xlab = "t-Statistic")
+# Overlay vertical lines at critical values for a 5% significance level
+abline(v = c(-1.96, 1.96), col = "red", lty = 2)
+```
+
+```{r}
+##f) How often to reject the null hypothesis
+# Count the number of rejections
+rejects <- sum(abs(t_statistics) > 1.96)
+# Calculate the share of rejections
+share_rejects <- rejects / simulations
+# Print the result
+cat("Share of rejections at 5% significance level:", share_rejects, "\n")
+```
+Counts how many times the absolute value of the t-statistic is greater than 1.96 (indicating rejection of the null hypothesis at the 5% level) 
+and then calculates the share of rejections relative to the total 
+number of simulations. The share of rejections relative to the total number of simulations is 1 at 5% level of significance.
+
+```{r}
+##g) N = 1000
+##Simulations
+# Set seed
+set.seed(0)
+# Number of simulations
+simulations <- 1000
+# Sample size
+N <- 1000
+# Degrees of freedom for chi-squared distribution
+df <- 4
+# The Function to generate random samples
+random_samples <- function() {
+  # Generate X_i from chi-squared distribution
+  X <- rchisq(N, df)
+  # Generate errors from standard normal distribution
+  e <- rnorm(N, 0, 1)
+  # relationship equation
+  Y <- 1.3 + 0.5 * X + 0.7 * X^2 + e
+  # Return a data frame
+  return(data.frame(X = X, Y = Y))
+}
+# Simulate 1000 random samples
+simulated_data <- replicate(simulations, random_samples(), simplify = FALSE)
+##First simulations data
+head(simulated_data[[1]])
+##parameter estimates using the Ordinary Least Squares
+##Function to estimate parameters using OLS
+estimate_parameters <- function(data) {
+  # Fit OLS model
+  model <- lm(Y ~ poly(X, degree = 2), data = data)
+  # Return coefficients
+  return(coef(model))
+}
+# Apply the function to each simulated sample
+parameter_estimates <- lapply(simulated_data, estimate_parameters)
+# Display parameter estimates for the first simulation
+parameter_estimates[[1]]
+```
+
+
+```{r}
+##Histogram
+##parameter_estimates is a list containing OLS estimates for each simulation
+# True parameter values
+true_intercept <- 1.3
+true_beta1 <- 0.5
+true_beta2 <- 0.7
+# Plot histograms
+par(mfrow = c(1, 3))  # Arrange plots in one row with three columns
+# Histogram for Intercept
+hist(parameter_estimates[[1]]["(Intercept)"], main = "Intercept", xlab = "Estimate", col = "lightblue", border = "black")
+abline(v = true_intercept, col = "red", lwd = 2)
+# Histogram for beta1
+hist(parameter_estimates[[1]]["poly(X, degree = 2)1"], main = "Beta1", xlab = "Estimate", col = "lightgreen", border = "black")
+abline(v = true_beta1, col = "red", lwd = 2)
+# Histogram for beta2
+hist(parameter_estimates[[1]]["poly(X, degree = 2)2"], main = "Beta2", xlab = "Estimate", col = "lightcoral", border = "black")
+abline(v = true_beta2, col = "red", lwd = 2)
+```
+
+
+```{r}
+##sample mean estimates
+#parameter_estimates is a list of vectors
+#Convert it to a matrix
+parameter_matrix <- do.call(cbind, parameter_estimates)
+# Display the sample mean estimates
+mean_estimates <- colMeans(parameter_matrix)
+print("Estimated Parameters:")
+head(mean_estimates)
+# True parameter values
+true_parameters <- c(1.3, 0.5, 0.7)
+# Display the true parameters and the sample mean estimates
+print("True Parameters:")
+print(true_parameters)
+```
+
+
+```{r}
+##Hypothesis
+# Number of simulations
+simulations <- 1000
+# Create a function to generate t-statistics for each sample
+generate_t_statistics <- function(sample_data) {
+  # Fit a linear model
+  model <- lm(Y ~ X, data = sample_data)
+  # Calculate t-statistic for beta_1
+  t_stat <- (coef(model)["X"] - 0.5) / sqrt(vcov(model)["X", "X"])
+  return(t_stat)
+}
+# Generate t-statistics for each sample
+t_statistics <- replicate(simulations, generate_t_statistics(random_samples()))
+# Plot histogram of t-statistics
+hist(t_statistics, col = "lightblue", main = "Histogram of t-Statistics", 
+     xlab = "t-Statistic")
+# Overlay vertical lines at critical values for a 5% significance level
+abline(v = c(-1.96, 1.96), col = "red", lty = 2)
+```
+
+```{r}
+# Count the number of rejections
+rejects <- sum(abs(t_statistics) > 1.96)
+# Calculate the share of rejections
+share_rejects <- rejects / simulations
+# Print the result
+cat("Share of rejections at 5% significance level:", share_rejects, "\n")
+```
+
+
+```{r}
+##g) N = 10000
+##Simulations
+# Set seed
+set.seed(0)
+# Number of simulations
+simulations <- 1000
+# Sample size
+N <- 10000
+# Degrees of freedom for chi-squared distribution
+df <- 4
+# The Function to generate random samples
+random_samples <- function() {
+  # Generate X_i from chi-squared distribution
+  X <- rchisq(N, df)
+  # Generate errors from standard normal distribution
+  e <- rnorm(N, 0, 1)
+  # relationship equation
+  Y <- 1.3 + 0.5 * X + 0.7 * X^2 + e
+  # Return a data frame
+  return(data.frame(X = X, Y = Y))
+}
+# Simulate 1000 random samples
+simulated_data <- replicate(simulations, random_samples(), simplify = FALSE)
+##First simulations data
+head(simulated_data[[1]])
+##parameter estimates using the Ordinary Least Squares
+##Function to estimate parameters using OLS
+estimate_parameters <- function(data) {
+  # Fit OLS model
+  model <- lm(Y ~ poly(X, degree = 2), data = data)
+  # Return coefficients
+  return(coef(model))
+}
+# Apply the function to each simulated sample
+parameter_estimates <- lapply(simulated_data, estimate_parameters)
+# Display parameter estimates for the first simulation
+parameter_estimates[[1]]
+```
+
+
+```{r}
+##Histogram
+##parameter_estimates is a list containing OLS estimates for each simulation
+# True parameter values
+true_intercept <- 1.3
+true_beta1 <- 0.5
+true_beta2 <- 0.7
+# Plot histograms
+par(mfrow = c(1, 3))  # Arrange plots in one row with three columns
+# Histogram for Intercept
+hist(parameter_estimates[[1]]["(Intercept)"], main = "Intercept", xlab = "Estimate", col = "lightblue", border = "black")
+abline(v = true_intercept, col = "red", lwd = 2)
+# Histogram for beta1
+hist(parameter_estimates[[1]]["poly(X, degree = 2)1"], main = "Beta1", xlab = "Estimate", col = "lightgreen", border = "black")
+abline(v = true_beta1, col = "red", lwd = 2)
+# Histogram for beta2
+hist(parameter_estimates[[1]]["poly(X, degree = 2)2"], main = "Beta2", xlab = "Estimate", col = "lightcoral", border = "black")
+abline(v = true_beta2, col = "red", lwd = 2)
+```
+
+
+```{r}
+##sample mean estimates
+#parameter_estimates is a list of vectors
+#Convert it to a matrix
+parameter_matrix <- do.call(cbind, parameter_estimates)
+# Display the sample mean estimates
+mean_estimates <- colMeans(parameter_matrix)
+print("Estimated Parameters")
+head(mean_estimates)
+# True parameter values
+true_parameters <- c(1.3, 0.5, 0.7)
+# Display the true parameters and the sample mean estimates
+print("True Parameters:")
+print(true_parameters)
+```
+
+
+```{r}
+##Hypothesis
+# Number of simulations
+simulations <- 1000
+# Create a function to generate t-statistics for each sample
+generate_t_statistics <- function(sample_data) {
+  # Fit a linear model
+  model <- lm(Y ~ X, data = sample_data)
+  # Calculate t-statistic for beta_1
+  t_stat <- (coef(model)["X"] - 0.5) / sqrt(vcov(model)["X", "X"])
+  return(t_stat)
+}
+# Generate t-statistics for each sample
+t_statistics <- replicate(simulations, generate_t_statistics(random_samples()))
+# Plot histogram of t-statistics
+hist(t_statistics, col = "lightblue", main = "Histogram of t-Statistics", 
+     xlab = "t-Statistic")
+# Overlay vertical lines at critical values for a 5% significance level
+abline(v = c(-1.96, 1.96), col = "red", lty = 2)
+```
+
+
+```{r}
+# Count the number of rejections
+rejects <- sum(abs(t_statistics) > 1.96)
+# Calculate the share of rejections
+share_rejects <- rejects / simulations
+# Print the result
+cat("Share of rejections at 5% significance level:", share_rejects, "\n")
+```
+From the results above, it is observed that as the sample size increases, the histogram of the t-statistic becomes more positively skewed. Otherwise the share of rejections at 5% level remains to be 1.
+
+```{r}
+##Qn 2.
+##To import the .dta file in R
+setwd("C:/Users/Baha/Downloads")
+BIRTH <-read_dta("C:/Users/Baha/Downloads/birthweight_smoking.dta")
+##a) Descriptive statistics
+# Create a list of vectors for each variable
+nprevisit_stats <- c(mean(BIRTH$nprevist), sd(BIRTH$nprevist),
+                     min(BIRTH$nprevist), max(BIRTH$nprevist),
+                     length(BIRTH$nprevist))
+birthweight_stats <- c(mean(BIRTH$birthweight), sd(BIRTH$birthweight),
+                       min(BIRTH$birthweight), max(BIRTH$birthweight),
+                       length(BIRTH$birthweight))
+educ_stats <- c(mean(BIRTH$educ), sd(BIRTH$educ), min(BIRTH$educ),
+                max(BIRTH$educ), length(BIRTH$educ))
+age_stats <- c(mean(BIRTH$age), sd(BIRTH$age), min(BIRTH$age),
+               max(BIRTH$age), length(BIRTH$age))
+# Create a data frame
+stats <- data.frame(nprevisit = nprevisit_stats,
+                    birthweight = birthweight_stats,
+                    Educ = educ_stats,
+                    Age = age_stats)
+# Set row names
+row.names(stats) <- c("mean", "Standard deviation", "minimum", 
+                      "maximum", "Length")
+# Print the table using stargazer
+stargazer(stats, title = "Descriptive Statistics", type = "text")
+```
+
+
+```{r}
+##b) Regressions
+attach(BIRTH)
+model1 <-lm(formula = birthweight~smoker);model1
+model2 <-lm(formula = birthweight~smoker + alcohol + nprevist);model2           
+model3 <-lm(formula = birthweight~smoker + alcohol + 
+              nprevist + educ + unmarried);model3
+##c) Report all the three results in one table
+# Print the summary table using stargazer
+stargazer(model1, model2, model3, 
+          title = "Linear Regression Models",
+          dep.var.caption = "Dependent Variable: Birthweight",
+          type = "text")
+```
+d) Discussions of the regression results 
+In model1, the intercept is positive indicating that the dependent variable has a positive correlation with the independent variable. The estimate of the  X variable is negative though, this implies that the variable smoker affects  the variable birth weight negatively. In model2, The X variables smoker and alcohol have negative estimates, this indicates that they correlate with the Y variable, that is birth weight negatively.An increase in these two variables decreases the Y variable. The variable nprevist positively correlates with the Y variable since it has a  positive estimate, means that an increase in the variable increases the Y variable too. In model3, all of the X variables, that is, smoker, alcohol, educ and unmarried variables except for nprevist, are negatively correlated to the Y variable since they have negative estimates, unlike nprevist which has a positive estimate.
