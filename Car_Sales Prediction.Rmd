@@ -1,0 +1,89 @@
+---
+title: "Prediction of Car_sales"
+output: html_document
+date: "2023-11-13"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+```{r}
+library(tidyverse)
+library(tidymodels)
+library(dplyr)
+library(ggplot2)
+library(Metrics)
+library(readxl)
+Car_Sales <- read_excel("C:/Users/Baha/OneDrive/Desktop/Car_Sales.xlsx") %>% 
+  tibble::as_tibble() %>% 
+  janitor::clean_names()
+# Find rows where ID is equal to 792
+rows_792 <- which(Car_Sales$id == 792)
+# Display the rows where ID is equal to 792
+Car_Sales[rows_792, ]
+##Data cleaning and data preparation
+# Check for unexpected values in character columns
+unexpected_values <- lapply(Car_Sales[, c('highway_fuel_economy', 'city_fuel_economy', 'engine_displacement', 'horsepower', 'mileage', 'seller_rating')], function(x) unique(x[!grepl("^\\d*\\.?\\d*$", x) & x != ""]))
+unexpected_values
+# Replace NA values with 0
+Car_Sales[is.na(Car_Sales)] <- 0
+# Convert character columns to numeric
+Car_Sales$highway_fuel_economy <- as.numeric(Car_Sales$highway_fuel_economy)
+Car_Sales$city_fuel_economy <- as.numeric(Car_Sales$city_fuel_economy)
+Car_Sales$engine_displacement <- as.numeric(Car_Sales$engine_displacement)
+Car_Sales$horsepower <- as.numeric(Car_Sales$horsepower)
+Car_Sales$mileage <- as.numeric(Car_Sales$mileage)
+Car_Sales$seller_rating <- as.numeric(Car_Sales$seller_rating)
+str(Car_Sales)
+Car_Sales <- data.frame(Car_Sales)
+class(Car_Sales)
+```
+
+```{r}
+# Fitting generalized linear model,  to model the Price of used cars
+#GAMMA DISTRIBUTION
+# Define the recipe
+attach(Car_Sales)
+gamma_rec <- recipes::recipe(price ~ fuel_tank_gallons +
+  highway_fuel_economy + city_fuel_economy + wheelbase_inches +
+  back_legroom_inches + front_legroom_inches + length_inches + width_inches + height_inches + engine_displacement + horsepower + daysonmarket + maximum_seating + mileage +seller_rating,data = Car_Sales
+) %>%
+  step_zv(all_predictors(), -all_outcomes()) %>% 
+  step_naomit(all_predictors(), -all_nominal()) %>%
+  step_dummy(all_nominal(), -all_outcomes()) %>%
+  step_center(all_predictors(), -all_nominal()) %>%
+  step_scale(all_predictors(), -all_nominal()) %>%
+  step_log(price, base = 10) %>%
+  prep(training = Car_Sales, retain = TRUE)
+gamma_rec
+# Fit a generalized linear model with gamma distribution and log link
+fit_gamma <- glm(formula = price ~ fuel_tank_gallons +
+  highway_fuel_economy + city_fuel_economy + wheelbase_inches +
+  back_legroom_inches + front_legroom_inches + length_inches + width_inches + height_inches + engine_displacement + horsepower + daysonmarket + maximum_seating + mileage +seller_rating,data = recipes::
+  juice(gamma_rec),
+family = Gamma(link = "log")  ## Specify gamma distribution and log link
+)
+summary(fit_gamma)
+test_gamma <- recipes::bake(gamma_rec,new_data = Car_Sales,
+                            all_predictors()
+)
+# get predictions
+pred <- predict(fit_gamma, test_gamma, se.fit = FALSE, scale = NULL, df = Inf,
+interval = "prediction",level = 0.95, type = "response")
+results <-Car_Sales %>% select(id, price) %>% 
+  mutate(price = log10(price)) %>% 
+bind_cols(pred)
+rmarkdown::paged_table(results)
+mse <- mean((fit_gamma$residuals)^2)
+cat("Mean Squared Error:", mse)
+rmse <-sqrt(mse);rmse
+#construct submission_File from the predictions
+submissionFile <- data.frame(id = results$id, price = results$...3)
+submissionFile$price <-10^submissionFile$price
+submissionFile
+write.csv(submissionFile, 'submissionFile.csv', row.names = FALSE)
+```
+
