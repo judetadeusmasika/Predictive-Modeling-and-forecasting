@@ -1,0 +1,297 @@
+---
+title: "INCOME AND EXPENDITURE ANALYSIS"
+author: "JUDETADEUS MASIKA"
+date: "2023-09-19"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+## PROJECT ON MODELING DISPOSABLE HOUSEHOLD INCOME
+## USING GENERALIZED LINEAR MODELS
+```{r}
+## Loading the required packages
+library(tidyverse)
+library(tidymodels)
+library(readxl)
+library(dplyr)
+library(ggplot2)
+library(GGally)
+library(ROCR)
+library(readr)
+library(mlbench)
+library(gamlss)
+library(magrittr)
+library(aod)
+library(moments)
+library(fpp)
+library(caret)
+library(Metrics)
+library(aod)
+```
+
+```{r}
+#### Load the Data
+options(scipen = 999)
+rm(list = ls())
+gc()
+library(readxl)
+income_data <- read_excel("income_data.xlsx") %>% 
+  tibble::as_tibble() %>% 
+  janitor::clean_names()
+dplyr::glimpse(income_data)
+dim(income_data)
+```
+
+```{r}
+#summary statistics for Household income data
+library(fBasics)
+statistics <-data.frame(
+  'Disposable income' = c(mean(income_data$dispo_house_inc), 
+    median(income_data$dispo_house_inc),sd(income_data$dispo_house_inc),
+skewness(income_data$dispo_house_inc),kurtosis(income_data$dispo_house_inc),
+    min(income_data$dispo_house_inc),max(income_data$dispo_house_inc)),
+  'Food' =c(mean(income_data$food_exp), 
+  median(income_data$food_exp), sd(income_data$food_exp),
+ skewness(income_data$food_exp),kurtosis(income_data$food_exp),
+ min(income_data$food_exp),
+  max(income_data$food_exp)),
+  'Transportation' = c(mean(income_data$transpo_exp),
+median(income_data$transpo_exp),sd(income_data$transpo_exp),
+skewness(income_data$transpo_exp),kurtosis(income_data$transpo_exp),
+min(income_data$transpo_exp),max(income_data$transpo_exp)),
+  'Housing and Water' = c(mean(income_data$house_water_exp),
+median(income_data$house_water_exp),sd(income_data$house_water_exp),
+ skewness(income_data$house_water_exp),kurtosis(income_data$house_water_exp),
+min(income_data$house_water_exp),max(income_data$house_water_exp)),
+  'Clothing and Footwear' = c(mean(income_data$clothing_exp),
+median(income_data$clothing_exp),sd(income_data$clothing_exp),
+skewness(income_data$clothing_exp),kurtosis(income_data$clothing_exp),
+min(income_data$clothing_exp),max(income_data$clothing_exp)),
+  'Education' = c(mean(income_data$educ_exp),median(income_data$educ_exp),
+sd(income_data$educ_exp), skewness(income_data$educ_exp),
+kurtosis(income_data$educ_exp),min(income_data$educ_exp),
+max(income_data$educ_exp)),
+  'Other expenditures' = c(mean(income_data$goods_services_exp),
+median(income_data$goods_services_exp),sd(income_data$goods_services_exp),
+ skewness(income_data$goods_services_exp),
+kurtosis(income_data$goods_services_exp),min(income_data$goods_services_exp),
+max(income_data$goods_services_exp)),
+  'entrepreneur income' = c(mean(income_data$inc_entrep),
+median(income_data$inc_entrep),sd(income_data$inc_entrep),
+skewness(income_data$inc_entrep),kurtosis(income_data$inc_entrep), 
+min(income_data$inc_entrep),max(income_data$inc_entrep)),
+  'Number employed' = c(mean(income_data$empl_members),
+median(income_data$empl_members),sd(income_data$empl_members),
+skewness(income_data$empl_members),kurtosis(income_data$empl_members),
+min(income_data$empl_members),max(income_data$empl_members)),
+  'Head age' = c(mean(income_data$head_age),median(income_data$head_age),
+sd(income_data$head_age),
+skewness(income_data$head_age),kurtosis(income_data$head_age),
+min(income_data$head_age),max(income_data$head_age)))
+row.names(statistics) <- c("mean", "median","standard deviation",
+"skewness","kurtosis","minimum","maximum")
+#table of statistics.
+print(statistics)
+```
+
+```{r}
+# Features with missing values (graphically)
+library(DataExplorer)
+DataExplorer::plot_missing(income_data[1:6],  ggtheme = theme_minimal())
+DataExplorer::plot_missing(income_data[7:11],  ggtheme = theme_minimal())
+## dataset for modeling
+income_data$head_sex <-factor(income_data$head_sex, levels = 
+                                c("Male", "Female"))
+dplyr::glimpse(income_data)
+```
+
+```{r}
+# Split the Data
+set.seed(7)
+income_data_split <- income_data %>% rsample::initial_split(strata= 
+         "dispo_house_inc",
+                    prop = 0.8)
+income_data_train <- rsample::training(income_data_split)
+income_data_test <- rsample::testing(income_data_split)
+glimpse(income_data_train)
+glimpse(income_data_test)
+```
+
+```{r}
+# Fitting GLMs to model disposable household income
+#GAMMA DISTRIBUTION
+# Define the recipe
+gamma_rec <- recipes::recipe(dispo_house_inc ~ .,data = income_data_train
+) %>%step_dummy(all_nominal(), -all_outcomes()) %>%
+  step_center(all_predictors(), -all_nominal()) %>%
+step_scale(all_predictors(), -all_nominal()) %>%
+step_log(dispo_house_inc, base = 10) %>%
+prep(training = income_data_train, retain = TRUE)
+# Fit a glm with gamma distribution and log link
+fit_gamma <- glm(formula = dispo_house_inc ~ .,data = recipes::
+  juice(gamma_rec),
+family = Gamma(link = "log")  ## Specify gamma distribution and log link
+)
+summary(fit_gamma)
+BIC(fit_gamma)
+test_gamma <- recipes::bake(gamma_rec,new_data = income_data_test,
+                            all_predictors()
+)
+# get predictions
+pred <- predict(fit_gamma, test_gamma, se.fit = FALSE, scale = NULL, df = Inf,
+interval = "prediction",level = 0.95, type = "response")
+results <-income_data_test %>% select(dispo_house_inc) %>% 
+  mutate(dispo_house_inc = log10(dispo_house_inc)) %>% 
+bind_cols(pred)
+rmarkdown::paged_table(results)
+```
+
+```{r}
+##Mean Squared Error
+mse <- mean((fit_gamma$residuals)^2)
+cat("Mean Squared Error:", mse)
+##Calculate accuracy (as a percentage)
+accuracy <- 100 - mse
+cat("Accuracy (MSE):", accuracy, "%\n")
+##Calculate the mean absolute error
+mae <- mean(abs(fit_gamma$residuals))
+cat("Mean Absolute Error:", mae)
+##Calculate accuracy (as a percentage)
+accuracy <- 100 - mae
+cat("Accuracy (MAE):", accuracy, "%\n")
+```
+
+```{r}
+##Plotting the results
+plot(results$dispo_house_inc,type = "l",lty= 1.8,
+     main="Actual income and Predicted income",col = "grey")
+lines(results$...2, type = "l", col = "red") 
+legend("topleft",legend=c("Actual income", "Predicted income"),
+col=c("grey", "red"), lty=1:2, cex=0.80)
+
+```
+
+```{r}
+# Create a data frame for plotting
+plot_data <- data.frame(Actual = 
+  results$dispo_house_inc,  Predicted = results$...2)
+##Create the point plot
+point_plot <- ggplot(plot_data, aes(x = Actual, y = Predicted)) +
+geom_point() +geom_abline(intercept = 0, slope = 1, color = "red", 
+                    linetype = "dashed") +
+labs(x = "Actual income", y = "Predicted income", 
+title = "Actual vs. Predicted income") + theme_minimal()
+## Print the plot
+print(point_plot)
+```
+
+```{r}
+# Load the necessary libraries
+library(stats)
+# Calculate the chi-square statistic
+chi_square_statistic <- chisq.test(results$dispo_house_inc, results$...2)
+# print the results
+print(chi_square_statistic)
+# Calculate the degrees of freedom
+df <- length(results$dispo_house_inc) - 1
+print(df)
+# Calculate the p-value
+p_value <- pchisq(51756,df=227,lower.tail = FALSE)
+# print the results
+print(p_value)
+## Wald test
+wald.test(Sigma = vcov(fit_gamma), b = coef(fit_gamma), Terms = seq(1,11))
+```
+
+```{r}
+## LOGNORMAL DISTRIBUTION
+## Define the recipe
+lognormal_rec <- recipes::recipe(dispo_house_inc ~ .,data = income_data_train
+) %>%step_dummy(all_nominal(), -all_outcomes()) %>%
+  step_center(all_predictors(), -all_nominal()) %>%
+step_scale(all_predictors(), -all_nominal()) %>%
+  prep(training = income_data_train, retain = TRUE)
+##Fit a glm with log-normal distribution and log link
+fit_lognorm <- glm(formula = log(dispo_house_inc) ~ .,  
+  ## Note the log transformation of the outcome
+data = recipes::juice(lognormal_rec),mily = gaussian(link = "log")  
+  ## Specify log-normal distribution and log link
+)
+summary(fit_lognorm)
+BIC(fit_lognorm)
+test_lognormal <- recipes::bake(lognormal_rec,new_data = income_data_test,
+                                all_predictors()
+)
+## get predictions
+pred <- predict(fit_lognorm, test_lognormal,  se.fit = FALSE, 
+                scale = NULL, df = Inf,
+interval = "prediction",level = 0.95, type = "response")
+results1 <-income_data_test %>% select(dispo_house_inc) %>% 
+  mutate(dispo_house_inc = log10(dispo_house_inc)) %>% 
+  bind_cols(pred)
+rmarkdown::paged_table(results1)
+```
+
+```{r}
+##Mean Squared Error
+mse <- mean((fit_lognorm$residuals)^2)
+cat("Mean Squared Error:", mse)
+## Calculate accuracy (as a percentage)
+accuracy <- 100 - mse
+cat("Accuracy (MSE):", accuracy, "%\n")
+## Calculate the mean absolute error
+mae <- mean(abs(fit_lognorm$residuals))
+cat("Mean Absolute Error:", mae)
+## Calculate accuracy (as a percentage)
+accuracy <- 100 - mae
+cat("Accuracy (MAE):", accuracy, "%\n")
+
+```
+
+```{r}
+## Inverse Gaussian distribution
+## Define the recipe
+invgaussian_rec <- recipes::recipe(dispo_house_inc ~ .,
+          data = income_data_train
+) %>%step_dummy(all_nominal(), -all_outcomes()) %>%
+  step_center(all_predictors(), -all_nominal()) %>%
+step_scale(all_predictors(), -all_nominal()) %>%
+  prep(training = income_data_train, retain = TRUE)
+## Fit a glm with inverse Gaussian distribution and identity link
+fit_invgaussian <- glm(formula = dispo_house_inc ~ .,
+                       data = recipes::juice(invgaussian_rec),
+                       family = inverse.gaussian(link = "log")  
+  ## Specify inverse Gaussian distribution and identity link
+)
+summary(fit_invgaussian)
+BIC(fit_invgaussian)
+test_invgaussian <- recipes::bake(invgaussian_rec,new_data = income_data_test,
+          all_predictors()
+)
+## get predictions
+pred <- predict(fit_invgaussian, test_invgaussian,  
+        se.fit = FALSE, scale = NULL, df = Inf,interval = "prediction",
+level = 0.95, type = "response")
+results2 <-income_data_test %>% select(dispo_house_inc) %>% bind_cols(pred)
+rmarkdown::paged_table(results2)
+```
+
+```{r}
+##Mean Squared Error
+mse <- mean((fit_invgaussian$residuals)^2)
+cat("Mean Squared Error:", mse)
+## Calculate accuracy (as a percentage)
+accuracy <- 100 - mse
+cat("Accuracy (MSE):", accuracy, "%\n")
+## Calculate the mean absolute error
+mae <- mean(abs(fit_invgaussian$residuals))
+cat("Mean Absolute Error:", mae)
+## Calculate accuracy (as a percentage)
+accuracy <- 100 - mae
+cat("Accuracy (MAE):", accuracy, "%\n")
+```
+
