@@ -1,0 +1,239 @@
+---
+title: "Regression"
+subtitle: 'RM2 Portfolio Worksheet: Regression'
+author: "School of Psychology, University of Glasgow"
+output: html_document
+---
+
+```{r setup, include=FALSE, message = FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+In the book chapters you looked at the relationship between stats anxiety and engagement. In this portfolio we will go deeper into the data. First download the data and the Rmd assignment files through the zip folder on Moodle.
+
+First, note that the STARS survey has 6 different subscales:
+- Ask For Help: Anxiety related to getting help
+- Interpretation: Anxiety related to interpreting statistical output
+- Self-Concept: Anxiety related to perceived abilities
+- Teacher: Teacher-related anxiety
+- Test: Test-related anxiety
+- Worth: Feelings of Self-Worth
+
+The questions associated with each subscale are:
+
+|subscale       |questions                                                                      |
+|:--------------|:------------------------------------------------------------------------------|
+|Ask For Help   |Q03, Q16, Q19, Q23                                                             |
+|Interpretation |Q02, Q05, Q06, Q07, Q09, Q11, Q12, Q14, Q17, Q18, Q20                          |
+|Self-Concept   |Q25, Q31, Q34, Q38, Q39, Q48, Q51                                              |
+|Teacher        |Q30, Q32, Q43, Q44, Q46                                                        |
+|Test           |Q01, Q04, Q08, Q10, Q13, Q15, Q21, Q22                                         |
+|Worth          |Q24, Q26, Q27, Q28, Q29, Q33, Q35, Q36, Q37, Q40, Q41, Q42, Q45, Q47, Q49, Q50 |
+
+
+A table has been provided for you in `subscales.csv` that matches each question number to its corresponding subscale. This is a "lookup table" that allows us to match each item to a subscale through a join.
+
+In the book, you looked at whether the *mean anxiety* rating for each student predicted engagement.  In this portfolio, we will look at the relationship between mean anxiety and engagement *for each subscale*.
+
+## Load the data
+
+The code chunk below loads in the tidyverse and the data into `stars_raw`, `engage`, and `subscales`. It also reshapes the data for you, as was done in the in-class activity. After running this chunk have a look at the three resulting tibbles in your console.
+
+```{r load, message = FALSE}
+# leave this chunk as it is: do not alter any of the code
+library("pwr")
+library("car")
+library("tidyverse")
+
+stars_raw <- read_csv("L3_stars.csv") %>%
+  pivot_longer(names_to = "question", values_to = "score", cols = Q01:Q51) %>%
+  arrange(ID, question)
+
+engage <- read_csv("psess.csv")
+
+subscales <- read_csv("subscales.csv")
+```
+
+## Activity 1: Join the items to subscales
+
+The first thing you need to to is to map each item (question) onto the appropriate subscale using `inner_join()` to combine `stars_raw` and `subscales`. Name the resulting table `stars_sub`.
+
+```{r t01}
+stars_sub <- stars_raw %>%
+  inner_join(subscales, by = c("question" = "question"))
+```
+
+## Activity 2: Calculate `mean_anxiety` by student and subscale
+
+`stars_sub` has the data you need in long format. Now use `group_by()` and `summarise()` to calculate `mean_anxiety` for each combination of student and subscale (remember to remove NAs), and store the resulting tibble in the variable `stars_submeans`. Remember to `ungroup()` at the end.
+
+```{r t02}
+stars_submeans <- stars_sub %>%
+  group_by(ID, subscale) %>%
+  summarise(mean_anxiety = mean(score, na.rm = TRUE))
+stars_submeans <- ungroup(stars_submeans)
+```
+
+## Activity 3: Combine with engagement measurement
+
+Now join `stars_submeans` with the data in `engage` with `inner_join()`. Save the resulting table as `joined`.
+
+```{r t03}
+joined <- inner_join(stars_submeans, engage, by = "ID")
+```
+
+
+## Activity 4: Density plots
+
+Use `ggplot2()` to create a density plot that shows the distributions of mean anxiety scores for each sub-scale in a separate panel. You want to end up with a plot that has six separate panels, each representing one subscale. Use the data in `joined` for your plot.
+
+Make all your subscale distributions a different colour (the whole density area, not just the outline) and turn off the legend showing which colour corresponds to which subscale.
+
+Hint 1: use `geom_density`
+Hint 2: An example of what we mean by panels can be found in your data skills book chapter 13, activity 9
+
+```{r t04}
+ggplot(joined, aes(x = mean_anxiety, fill = subscale)) +
+  geom_density(alpha = 0.55) +  
+  facet_wrap(~subscale, scales = "free_y", ncol = 3) +  
+  theme_bw() +  
+  theme(legend.position = "none")  
+```
+
+## Activity 5: Scatterplots
+
+Use `ggplot2()` to create scatterplots with `mean_anxiety` on the X axis and `n_weeks` on the Y axis, but do it so there is *a separate scatterplot for each subscale*. Add a straight regression line to the plots.
+
+Hint: use `facet_wrap()`
+
+```{r t05}
+ggplot(joined, aes(x = mean_anxiety, y = n_weeks)) +
+  geom_point() +  
+  geom_smooth(method = "lm", se = FALSE, color = "red") +  
+  facet_wrap(~subscale, scales = "free_y", ncol = 3) +  
+  theme_bw()
+```
+
+## Run regressions for each subscale
+
+Now you need to run 6 separate regressions predicting `n_weeks` from `mean_anxiety`, one for each of the six subscales.  Use the code chunk below to (1) pull out the data you need for each subscale, and (2) run a regression on it.  It is up to you to decide how to do this: there are many valid approaches.  How you do it won't be assessed; however, you will derive values from each of the 6 regressions that we will check later.
+
+```{r run_regressions}
+Help <-filter(joined, subscale =="Ask For Help")
+Interpretation <-filter(joined, subscale == "Interpretation")
+Concept <-filter(joined, subscale == "Self-Concept")
+Test <-filter(joined, subscale == "Test")
+Teacher <-filter(joined, subscale == "Teacher")
+Worth <-filter(joined, subscale == "Worth")
+model <-lm(n_weeks~mean_anxiety, data = Help)
+model1 <-lm(n_weeks~mean_anxiety, data = Interpretation)
+model2 <-lm(n_weeks~mean_anxiety, data = Concept)
+model3 <-lm(n_weeks~mean_anxiety, data = Test)
+model4 <-lm(n_weeks~mean_anxiety, data = Teacher)
+model5 <-lm(n_weeks~mean_anxiety, data = Worth)
+```
+
+## Activity 6: Normality
+
+Test whether the assumption of normally distributed residuals has been met for the "Interpretation" model using a Shapiro-Wilk test. Based upon the results of this test:
+
+1. The model violates the assumption of normality
+2. The model meets the assumption of normality
+
+Please replace the `NULL` below with the number of the option you think is correct. Please only use a single number, do not use words, and do **not** put the number in quotation marks.
+
+```{r t06}
+shapiro.test(model1$residuals)
+normality <- 2 
+##p-value greater than 5%, reject the null hypothesis thus the model meets the assumption of normality
+```
+
+## Activity 7: p-values
+
+Look at the Self-concept subscale. Which of the following statements is true?
+
+1. Self-concept subscale score does not significantly predict avoidance behaviour
+2. Self-concept subscale score is a significant predictor of avoidance behaviour
+
+Please replace the `NULL` below with the number of the option you think is correct. Please only use a single number, do not use words, and do **not** put the number in quotation marks.
+
+```{r t07}
+pvalues <- 2
+
+```
+
+## Activity 8: Slopes
+
+Look at the results of each regression using `summary()`. Which sub-scale has the smallest slope (i.e., the weakest relationship)?
+
+1. Worth
+2. Ask For Help
+3. Interpretation
+4. Test
+5. Self-concept
+6. Teacher
+
+Please replace the `NULL` below with the number of the option you think is correct. Please only use a single number, do not use words, and do **not** put the number in quotation marks.
+
+```{r t08}
+slope <- 6
+```
+
+## Activity 9: Variance explained
+
+Look at the results of each regression using `summary()`. Which sub-scale model explains the most variance using adjusted R-squared?
+
+1. Worth
+2. Ask For Help
+3. Interpretation
+4. Test
+5. Self-concept
+6. Teacher
+
+Please replace the `NULL` below with the number of the option you think is correct. Please only use a single number, do not use words, and do **not** put the number in quotation marks.
+
+```{r t09}
+variance <- 3
+```
+
+
+## Activity 10: Effect size
+
+Calculate the effect size (f2) for each model. Which subscale model has the largest effect size?
+
+1. Worth
+2. Ask For Help
+3. Interpretation
+4. Test
+5. Self-concept
+6. Teacher
+
+Please replace the `NULL` below with the number of the option you think is correct. Please only use a single number, do not use words, and do **not** put the number in quotation marks.
+
+
+```{r t10}
+effect_size <- 3
+```
+
+## Activity 11: Power
+
+Calculate the minimum effect size (f2) that we could reliably detect given the sample size (you did this in the book as part of the regression chapter). Based on this effect size, what would you conclude about the "test" subscale results?
+
+1. The overall model is significant and the effect size is larger than the minimum effect size therefore the analysis is sufficiently powered
+2. The overall model is non-significant and the effect size is larger than the minimum effect size therefore the analysis is sufficiently powered
+3. The overall model is significant but the effect size is smaller than the minimum effect size therefore the analysis is under-powered and there is an increased risk that the result is a false positive.
+4. The overall model is non-significant but the effect size is smaller than the minimum effect size therefore the analysis is under-powered and there is an increased risk that the result is a false negative.
+
+Please replace the `NULL` below with the number of the option you think is correct. Please only use a single number, do not use words, and do **not** put the number in quotation marks. Do not put your power calculation code in this chunk.
+
+```{r t11}
+test_power <- 1
+```
+
+
+# Finished
+
+Well done, you are finished. 
+
+It would be an excellent idea to now save your code, close Rstudio, reopen Rstudio, reopen your code, and then knit your code one last time. If there are no errors then your code should produce an HTML output with all your answers in place. If any errors appear you should try and rectify them before submitting the .Rmd file.
+
