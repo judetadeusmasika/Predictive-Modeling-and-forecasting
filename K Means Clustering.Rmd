@@ -1,0 +1,70 @@
+---
+title: "K-means Clustering"
+output: html_document
+date: "2023-11-22"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+```{r}
+library(plyr)
+library(ggplot2)
+library(cluster)
+library(lattice)
+library(graphics)
+library(grid)
+library(gridExtra)
+library(factoextra)
+library(gt)
+library(tidyverse)
+library(dplyr)
+library(readxl)
+```
+
+```{r}
+as.data.frame(read_csv("USArrests.csv"))
+data("USArrests")
+##Exclude rows with missing values
+USArrests %>% 
+  na.exclude()
+##Scaling each variable
+USArrests <-scale(USArrests)
+head(USArrests)
+```
+a) Perform hierarchical clustering
+```{r}
+##perform hierarchical clustering using the average method
+cluster <- agnes(USArrests, method = "average")
+##produce dendrogram
+pltree(cluster, cex = 0.6, hang = -1, main = "Dendrogram")
+rect.hclust(cluster, k = 4)
+```
+b) Perform K-means clustering on the data set.
+```{r}
+k_mean <- kmeans(USArrests,4, nstart=25)
+##compare the results
+results_table <- table(Hierarchical = cutree(cluster, k = 4),
+                       Kmeans = k_mean$cluster)
+results_table
+```
+##The two methods returns the same result, since they have high values along the diagonals
+c) Within sum of squares of every cluster
+```{r}
+k_mean
+k_mean$withinss
+```
+d) The optimal value of k, in k-means clustering is 4.
+
+```{r}
+##Justification of the answer is illustrated as: Let...
+wss <- numeric(15) 
+for (k in 1:15) wss[k] <- sum(kmeans(USArrests, centers=k, nstart=25)$withinss)
+plot(1:15, wss, type="b", xlab="Number of Clusters", ylab="Within Sum of Squares")
+##The process of identifying the appropriate value of k is 
+##referred to as finding the “elbow” of the WSS curve
+```
+
