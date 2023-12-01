@@ -1,0 +1,461 @@
+---
+title: "Spline Regression Analysis"
+author: "JUDETADEUS MASIKA"
+date: "2023-11-29"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+```
+
+```{r}
+##Data introduction
+library(datasets)
+library(stats)
+library(readr)
+library(ggplot2)
+library(nortest)
+kings <- scan("http://robjhyndman.com/tsdldata/misc/kings.dat", skip=3)
+king.ts <- ts(kings)
+kings <- as.data.frame(king.ts)
+# reformat data to use in modeling
+kings <- as.data.frame(kings)
+plot.ts(kings, main = "The age of death of successive kings of England over Time", xlab = "Years", ylab = "Age")
+```
+
+```{r}
+kings <- cbind(rownames(kings), kings)
+colnames(kings) <- c("Year", "Age")
+##best tuning parameter lambda
+# LOOCV for tuning parameter
+# setup variables
+x <- kings$Year
+y <- kings$Age
+##spar values
+spar_values <-c(0.1, 0.25, 0.50, 0.75, 1)
+# Hold MSE values
+MSE_ss <- rep(NA, length(spar_values))
+```
+
+```{r}
+# set an index to keep track of where we are in loop
+index <-1
+# outer loop is for the different smoothing parameter values
+for(sv in spar_values)
+{
+  error <- rep(NA, length(x))
+  # inner loop is for the LOOCV
+  for(i in 1:length(x))
+  {
+    # validation set is one value
+    x_value <- kings$Year[i]
+    y_value <- kings$Age[i]
+    # training set is everything except the validation value
+    x_train <- kings$Year[-i]
+    y_train <-  kings$Age[-i]
+    # fit the model
+    spline_model <- smooth.spline(x_train, y_train, spar=sv)
+    y_pred <- stats:::predict.smooth.spline(spline_model,x = 
+                                              as.numeric(x_value))$y
+    # store error for this run of CV
+    error[i] <- (y_value-y_pred)^2
+  }
+# store the MSE for the given spar value
+MSE_ss[index] <- mean(error, na.rm=TRUE)
+#increase index for next loop iteration
+  index <- index + 1
+}
+```
+
+```{r}
+# plot the results of each spar value for comparison
+plot(kings$Age, pch=20,
+     main="Smoothing Spline with Varying Spar Values", 
+     ylab="Age")
+ss_0.1 <- smooth.spline(kings$Year, kings$Age, spar=0.1)
+ss_0.25 <- smooth.spline(kings$Year, kings$Age, spar=0.25)
+ss_0.50 <- smooth.spline(kings$Year, kings$Age, spar=0.5)
+ss_0.75 <- smooth.spline(kings$Year, kings$Age, spar=0.75)
+ss_1 <- smooth.spline(kings$Year, kings$Age, spar=1)
+lines(predict(ss_0.1), col="red", lwd=1.5)
+lines(predict(ss_0.25), col="blue", lwd=1.5)
+lines(predict(ss_0.50), col="green", lwd=1.5)
+lines(predict(ss_0.75), col="orange", lwd=1.5)
+lines(predict(ss_1), col="purple", lwd=1.5)
+legend("topleft", legend = c("spar=0.1", "spar=0.25", 
+                                "spar=0.50", "spar=0.75", "spar=1"),
+       col = c("red", "blue", "green", "orange", "purple"), lty = 1)
+```
+```{r}
+# plot MSE as a function of spar value
+plot(spar_values, MSE_ss, type= "b", col="red", lwd=1.5,
+     main="Smoothing Spline LOOCV MSE",
+     xlab="Spar Value", ylab="MSE")
+# table of MSE values
+results <- rbind(spar_values, MSE_ss)
+rownames(results) <- c("Lambda", "CV-MSE")
+knitr::kable(results, caption="CV-MSE Values for Different Lambdas")
+```
+
+```{r}
+# get the best spar value
+min_error_ss <- spar_values[which.min(MSE_ss)]
+# plot the best fit
+spline_best <- smooth.spline(kings$Year, kings$Age, spar=min_error_ss)
+plot(kings, pch=20,
+     main="Smoothing Spline with Spar=0.1", ylab="AGE")
+lines(predict(spline_best), col="blue", lwd=1.5)
+# smoothing spline with the default cross validated value
+default_mod <- smooth.spline(kings$Year,  kings$Age, cv=TRUE)
+best_spar <- default_mod$spar
+plot(kings, pch=20,
+     main="Smoothing Spline with Package-Chosen Spar Value (0.196)",
+     ylab="AGE")
+lines(predict(default_mod), col="blue", lwd=1.5)
+```
+```{r}
+# pick the target location for bootstrap - 0.25 through
+target <- ceiling(nrow(kings) / 4)
+# get bootstrapped predictions - every year point
+y_est <- c()
+# set.seed(123)
+if(file.exists("kings_boot.rds"))
+{
+  y_est <- read_rds("kings_boot.rds")
+} else
+{
+  for(i in 1:10000)
+  {
+    # spline fit
+    indices <- sample(nrow(kings), replace = T)
+    kings_resampled <- kings[indices, ]
+    spline_model <- smooth.spline(kings_resampled$Year,
+                                kings_resampled$Age, cv=TRUE)
+    y_pred <- predict(spline_model, as.numeric(kings$Year))$y
+    y_est[[i]] <- y_pred
+  }
+  write_rds(y_est, "kings_boot.rds")
+}
+```
+
+```{r}
+# Get bootstrap estimate for each point at the target location
+target_dist <- c()
+for(i in 1:length(y_est))
+{
+target_dist <- c(target_dist, y_est[[i]][target])
+}
+target_dist_df <- as.data.frame(target_dist)
+# see what the distribution looks like
+ggplot(target_dist_df) +
+geom_histogram(aes(x=target_dist_df$target_dist)) +
+geom_vline(xintercept=predict(spline_best)$y[target], color="blue") +
+labs(title="Bootstrap Distribution for Spline Y Estimate",
+x="Spline Y Estimate", y="Frequency") +
+theme(plot.title = element_text(hjust = 0.5),
+panel.grid.major.x = element_blank(),
+panel.grid.minor.x = element_blank())
+```
+
+```{r}
+# part i - large-sample CI
+target_large_samp_CI <- c(predict(spline_best)$y[target] - 1.645*sd(target_dist),
+predict(spline_best)$y[target] + 1.645*sd(target_dist))
+
+ggplot(target_dist_df) +
+   geom_histogram(aes(x=target_dist_df$target_dist)) +
+  geom_vline(xintercept=predict(spline_best)$y[target],
+             color="black", linetype="dashed") +
+  geom_vline(xintercept=c(target_large_samp_CI[1],
+                          target_large_samp_CI[2]), color="blue") +
+  labs(title="Bootstrap Distribution for Spline Y Estimate",
+       x="Spline Y Estimate", y="Frequency") +
+  theme(plot.title = element_text(hjust = 0.5),
+        panel.grid.major.x = element_blank(),
+        panel.grid.minor.x = element_blank())
+```
+
+
+  
+```{r}
+# part ii - percentile CI
+sort_target <- sort(target_dist)
+
+target_percentile_CI <- c(sort_target[500], sort_target[9500])
+##plot
+ggplot(target_dist_df) + 
+  geom_histogram(aes(x=target_dist), bins=20) +
+  geom_vline(xintercept=predict(spline_best)$y[target],
+             color="black", linetype="dashed") +
+  geom_vline(xintercept=c(target_percentile_CI[1],
+                          target_percentile_CI[2]), color="blue") +
+  labs(title="Bootstrap Distribution for Spline Y Estimate",
+       x="Spline Y Estimate", y="Frequency") + 
+  theme(plot.title = element_text(hjust = 0.5), 
+        panel.grid.major.x = element_blank(),
+        panel.grid.minor.x = element_blank())
+ad.test(target_dist)
+```
+```{r}
+# part iii - bias-corrected CI
+theta_n <- predict(spline_best)$y[target]
+p0_target <- mean(sort_target < theta_n)
+z0_target <- qnorm(p0_target)
+a0_target_num <- sum(mean((sort_target) - sort_target)^3)
+a0_target_denom <- 6 * sum(mean((sort_target - sort_target)^2))^(3/2)
+a0_target <- a0_target_num / a0_target_denom
+q1_target <- pnorm(z0_target + (z0_target + qnorm(0.05)) /
+                     (1 - a0_target*(z0_target + qnorm(0.05))))
+q2_target <- pnorm(z0_target + (z0_target + qnorm(0.95)) /
+                     (1 - a0_target*(z0_target + qnorm(0.95))))
+target_bias_CI <- c(sort_target[floor(10000*q1_target)],
+                    sort_target[floor(10000*q2_target)])
+##Plot
+ggplot(target_dist_df) + geom_histogram(aes(x=target_dist), bins=20) +
+  geom_vline(xintercept=predict(spline_best)$y[target],
+             color="black",
+linetype="dashed") +
+  geom_vline(xintercept=c(target_bias_CI[1], target_bias_CI[2]),
+             color="blue") +
+  labs(title="Bootstrap Distribution for Spline Y Estimate",
+       x="Spline Y Estimate", y="Frequency") +
+  theme(plot.title = element_text(hjust = 0.5),
+        panel.grid.major.x = element_blank(),
+panel.grid.minor.x = element_blank())
+```
+
+```{r}
+# plots of all CIs
+ggplot() + geom_line(aes(x=spline_best$x,
+                         y=predict(spline_best)$y),
+                     color="azure4") +
+  geom_segment(aes(x=target, y=target_large_samp_CI[1],
+                   xend=target,
+                   yend=target_large_samp_CI[2]),
+               color="deepskyblue2",
+               lineend = "square", size=1) +
+  labs(title="Large Sample Confidence Interval For Spline
+       Estimate",
+       x="Year", y="Age") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+
+ggplot() + geom_line(aes(x=spline_best$x,
+                         y=predict(spline_best)$y),
+                     color="azure4") +
+  geom_segment(aes(x=target, y=target_percentile_CI[1],
+                   xend=target,
+                   yend=target_percentile_CI[2]),
+               color="deepskyblue2",
+               lineend = "square", size=1) +
+  labs(title="Percentile Confidence Interval For Spline Estimate",
+       x="Year", y="Age") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+ggplot() + geom_line(aes(x=spline_best$x,
+                         y=predict(spline_best)$y),
+                     color="azure4") +
+  geom_segment(aes(x=target, y=target_bias_CI[1], xend=target,
+                   yend=target_bias_CI[2]), color="deepskyblue2",
+               lineend = "square", size=1) +
+  labs(title="Bias-Corrected Confidence Interval For Spline
+       Estimate",
+       x="Year", y="Age") +
+  theme(plot.title = element_text(hjust = 0.5))
+```
+```{r}
+# confidence intervals for the full spline
+large_samp_ub <- array(nrow(kings))
+large_samp_lb <- array(nrow(kings))
+perc_ub <- array(nrow(kings))
+perc_lb <- array(nrow(kings))
+bc_ub <- array(nrow(kings))
+bc_lb <- array(nrow(kings))
+```
+
+```{r}
+for(i in 1:nrow(kings))
+{
+spline_est <- array(10000)
+for(j in 1:10000)
+{
+spline_est[j] <- y_est[[j]][[i]]
+}
+# large sample CI
+large_samp_ub[i] <- predict(spline_best)$y[i] + 1.645*sd(spline_est)
+large_samp_lb[i] <- predict(spline_best)$y[i] - 1.645*sd(spline_est)
+# percentile CI
+sort_spline_est <- sort(spline_est)
+perc_ub[i] <- sort_spline_est[9500]
+perc_lb[i] <- sort_spline_est[500]
+# bias-corrected BI
+theta_n <- predict(spline_best)$y[i]
+p0 <- mean(sort_spline_est < theta_n)
+z0 <- qnorm(p0)
+a0_num <- sum((mean((sort_spline_est) - sort_spline_est)) ^ 3)
+a0_denom = 6 * sum((mean((sort_spline_est) - sort_spline_est) ^ 2)) ^ (3 / 2)
+a0 <- a0_num / a0_denom
+q1 <- pnorm(z0 + (z0 + qnorm(0.05)) / (1 - a0*(z0 + qnorm(0.05))))
+q2 <- pnorm(z0 + (z0 + qnorm(0.95)) / (1 - a0*(z0 + qnorm(0.95))))
+bc_ub[i] <- sort_spline_est[floor(10000*q2)]
+bc_lb[i] <- sort_spline_est[floor(10000*q1)]
+}
+```
+
+```{r}
+# plot the CIs one-by-one
+ggplot() + geom_line(aes(x=spline_best$x, y=predict(spline_best)$y),
+                     color="azure4") +
+  geom_line(aes(x=spline_best$x,y=large_samp_ub),
+            color="coral1") +
+  geom_line(aes(x=spline_best$x,y=large_samp_lb),
+            color="coral1") +
+  labs(title="90% Large-Sample Confidence Interval",
+       x="Year", y="Level") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+ggplot() + geom_line(aes(x=spline_best$x, y=predict(spline_best)$y),
+                     color="azure4") +
+  geom_line(aes(x=spline_best$x,y=perc_ub),
+            color="darkturquoise") +
+  geom_line(aes(x=spline_best$x,y=perc_lb),
+            color="darkturquoise") +
+  labs(title="90% Percentile Confidence Interval",
+       x="Year", y="Level") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+ggplot() +
+  geom_line(aes(x = spline_best$x, y = predict(spline_best)$y), color = "maroon") +
+  geom_line(aes(x = spline_best$x, y = bc_ub), color = "purple") +
+  geom_line(aes(x = spline_best$x, y = bc_lb), color = "purple") +
+  labs(title = "90% Bias-Corrected Confidence Interval", x = "Year", y = "Level") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+```
+
+```{r}
+# plot the CIs together
+ggplot() + geom_line(aes(x=spline_best$x, y=predict(spline_best)$y),
+                     color="azure4") +
+  geom_line(aes(x=spline_best$x,y=large_samp_ub,
+                color="Large Sample")) +
+  geom_line(aes(x=spline_best$x,y=large_samp_lb,
+                color="Large Sample")) +
+  geom_line(aes(x=spline_best$x,y=perc_ub,
+                color="Percentile")) +
+  geom_line(aes(x=spline_best$x,y=perc_lb,
+                color="Percentile")) +
+  geom_line(aes(x=spline_best$x,y=bc_ub,
+                color="Bias-Corrected")) +
+  geom_line(aes(x=spline_best$x,y=bc_lb,
+                color="Bias-Corrected")) +
+  labs(color="90% CI Type", title="Confidence Interval Comparison",
+       x="Year", y="Level") +
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+```{r}
+##Question two.
+library(tidyverse)
+library(waveslim)
+library(readxl)
+stocks <- read_excel("Datasets/Stocks_data.xlsx")
+##keep 1024 rows for the purpose of wavelets
+stocks <-stocks[c(1000:2023),]
+ggplot(stocks) + geom_line(aes(x=Date, y=Close)) +
+  labs(title="S&P Stock Data - Closing Price",
+       x="Days Since 2003", y="Closing Price") +
+  theme(plot.title = element_text(hjust = 0.5))
+Close <- stocks$Close
+# Determine the nearest lower length divisible by 2^J
+J <- 9  # Adjust this value as needed
+new_length <- floor(length(Close) / 2^J) * 2^J
+# Trim the data
+trim_data <- Close[1:new_length]
+# wavelet transform using la8
+SP_dwt <- dwt(ts(stocks$Close), wf='la8', n.levels = 9,
+               boundary = 'periodic')
+all_levels <- list(SP_dwt$d1, SP_dwt$d2, SP_dwt$d3, SP_dwt$d4,
+                   SP_dwt$d5, SP_dwt$d6, SP_dwt$d7, SP_dwt$d8,
+                   SP_dwt$d9, SP_dwt$s9)
+dwt_names <- c("d1", "d2", "d3", "d4", "d5", "d6", "d7", "d8", "d9", "s9")
+par(mfrow=c(3,2))
+for(i in 1:10)
+{
+  plot.ts(all_levels[[i]], axes=F, bty='n', type ='h',
+          xlab ="Time", ylab = dwt_names[i])
+}
+# signal reconstruction
+# reduction ratio
+red_ratio <- function(x)
+{
+  b1 <- 0
+  b2 <- 0
+  for(i in 1:9)
+  {
+    b1 <- b1 + sum(x[[i]] != 0)
+    b2 <- b2 + sum(SP_dwt[[i]] != 0)
+  }
+  reductionRatio <- (1 - (b1/b2)) * 100
+}
+# rreh method
+coeffs <- c(SP_dwt$d1, SP_dwt$d2, SP_dwt$d3, SP_dwt$d4,
+            SP_dwt$d5, SP_dwt$d6, SP_dwt$d7,
+            SP_dwt$d8, SP_dwt$d9)
+coeffs <- sort(abs(coeffs), decreasing=TRUE)
+lambda <- sqrt(sum(coeffs^2) / length(coeffs))
+rreh <- SP_dwt
+for (i in 1:9)
+{
+  rreh[[i]][abs(rreh[[i]])<lambda] <- 0
+}
+rreh_reconstruct <- idwt(rreh)
+rreh_red_ratio <- red_ratio(rreh)
+rreh_mse <- mean((rreh_reconstruct-stocks$Close)^2)
+# sure Shrink
+shrink <- sure.thresh(SP_dwt, max.level=9, hard=TRUE)
+shrink_reconstruct <- idwt(shrink)
+shrink_red_ratio <- red_ratio(shrink)
+shrink_mse <- mean((shrink_reconstruct-stocks$Close)^2)
+# plot reconstructions
+ggplot(stocks) + geom_line(aes(x=Date, y=Close)) +
+  geom_line(aes(x=Date, y=rreh_reconstruct,
+                color="RREh Reconstruction")) +
+  geom_line(aes(x=Date, y=shrink_reconstruct,
+                color="SureShrink Reconstruction")) +
+  labs(color="Reconstruction", title="S&P Stock Data - Closing Price Reconstructions",
+       x="Days Since 2003", y="Closing Price") +
+  theme(plot.title = element_text(hjust = 0.5))
+# comparison of MSE and reduction
+MSE <- c(rreh_mse, shrink_mse)
+RedRatio <- c(rreh_red_ratio*.01, shrink_red_ratio*.01)
+results <- cbind(MSE, RedRatio)
+rownames(results) <- c("RREh Method", "SureShrink Method")
+colnames(results) <- c("MSE", "Reduction Ratio")
+knitr::kable(results)
+# mra plot, keeping only larger DWTs from RREh
+```
+
+```{r}
+##QUESTION THREE
+# Method 1-  McNemar's Test
+sitting <-c(rep("sit_pass", 84), rep("sit_fail", 144),
+            rep("sit_pass", 54), rep("sit_fail", 52))
+takeaway <-c(rep("take_pass", 84), rep("take_fail", 144),
+             rep("take_fail", 54), rep("take_pass", 52))
+Test <-as.data.frame(cbind(sitting, takeaway))
+knitr::kable(table(Test$sitting, Test$takeaway))
+# mcnemar's test
+mcnemar.test(table(Test$sitting, Test$takeaway))
+##Method 2 - Chi Square test
+##Load the data set
+Press_anlysis <- read_excel("Datasets/a2-p3.xlsx", 
+  col_types = c("text", "text", "text", "text"))
+# chi-square test
+Press_anlysis <- Press_anlysis[Press_anlysis$Gender %in% c("Yes", "No"), ]
+knitr::kable(table(Press_anlysis$Pressure, Press_anlysis$Gender))
+chisq.test(Press_anlysis$Pressure, Press_anlysis$Gender, correct=FALSE)
+```
+
