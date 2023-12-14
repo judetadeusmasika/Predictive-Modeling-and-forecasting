@@ -1,0 +1,311 @@
+---
+title: "Bioinformatikks"
+output: word_document
+date: "2023-12-13"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+##Task 1 : Gene Information and GC Content
+
+## a) Create a table containing the following information for three species: human (Homo sapiens), rat (Rattus norvegicus), and chicken (Gallus gallus):
+
+#Gene ID
+#Number of exons and introns
+#Chromosome where the gene is located
+#Accession numbers for the chromosome, mRNA, and protein sequences
+#Length of the gene, mRNA, and protein
+#UniProt protein ID
+
+
+
+
+## b) What is the function of the REN gene?
+
+Renin and the renin-angiotensin-aldosterone system (RAAS) actively participate in maintaining blood pressure and fluid balance; this hormonal system--a central player in these processes--can be simplified as follows: Low blood pressure or reduced blood volume serves as the stimulus for renin release. The release of renin into the bloodstream occurs. Renin converts angiotensinogen into angiotensin I through the process of Angiotensinogen Conversion. The Angiotensin-Converting Enzyme (ACE) converts Angiotensin I into further angiotensin II. Effects of Angiotensin II: Angiotensin II induces vasoconstriction, thereby elevating blood pressure. Angiotensin II triggers the release of aldosterone, an action that enhances sodium and water retention in the kidneys; consequently, blood volume escalates
+
+## c) What is the structure of the REN protein in humans? Use an image if possible and describe it.
+
+Structure. The primary structure of renin precursor consists of 406 amino acids with a pre- and a pro-segment carrying 20 and 46 amino acids, respectively. Mature renin contains 340 amino acids and has a mass of 37 kDa.
+
+
+
+## d) What is the average GC content in the REN gene for these three species?
+
+To calculate the average GC content in the REN gene for three different species--human, rat and chicken--, you must perform a series of steps; these comprise: determining the total number of bases within each respective DNA sequence; identifying all instances where either guanine (G) or cytosine (C) appear among those bases, and then expressing that count as a percentage. The GC content—also known as guanine-cytosine content—is simply this: the proportion of Gs or Cs within any given strand's overall composition.
+Seize the DNA Sequences:
+Obtain the DNA sequences of the REN gene for each species from access databases, such as NCBI Gene or Ensembl.
+Please identify the coding regions, specifically the CDS or exons, of each species' REN gene; these are indeed where we can locate its actual protein-coding sequence.
+Conduct the calculation of GC Content:
+The identified coding regions: count their G and C bases; this action is imperative.
+Using the formula, calculate the percentage of GC content:
+The number of G bases.
+The count of C bases.
+The total length of the coding region: this is a critical metric to consider in genomic studies; it directly influences the potential for genetic variation and the complexity of an organism's traits.
+The total length of the coding region: this is a fundamental parameter in genomics; specifically, it denotes the sum of base pairs found within all exons present in an organism's genome.
+The sum of the bases containing G, and the number of bases containing C.
+The average GC content:
+For each species - human, rat, and chicken: repeat the process.
+For all three species, compute the average GC content throughout their REN gene's coding regions.
+
+My interpretation is as follows:
+The DNA sequences with a higher GC content might exhibit enhanced stability, whereas those possessing lower GC content could imply a less stable structure. Nonetheless, one should interpret these findings prudently; further biological context remains indispensable.
+
+## Use the "slidingwindowplot" function in the seqinr package to analyze the GC content in the gene sequences of the three species. Display the plots, compare the results, and provide comments.
+
+```{r}
+library(Biostrings)
+# Function to calculate GC content in a sliding window
+calculate_sliding_gc <- function(dna_sequence, window_size) {
+  # Create a DNAString object
+  dna_string <- DNAString(dna_sequence)
+  # Calculate GC content in a sliding window
+  gc_content <- letterFrequency(dna_string, "GC", as.prob=TRUE, weight=window_size)
+  # Plot the results
+  plot(gc_content, type="h", xlab="Position", ylab="GC Content", main="Sliding Window GC Content")
+}
+```
+
+
+##Task 2: Alignment and Phylogeny
+
+## a) Perform a multiple sequence alignment analysis of the protein sequence of RPS19 (ribosomal protein S19) in selected species: human, rhesus monkey, chimpanzee, orangutan, mouse, rat, dog, spadefoot toad, and pig. Describe the results and assess differences and similarities between the sequences. Also, display selected portions of the alignment that are relevant to your assessment.
+
+
+```{r}
+library(DECIPHER)
+library(Biostrings)
+# Define protein sequences
+sequences <- c(
+  "Human sequence",
+  "Rhesus monkey sequence",
+  "Chimpanzee sequence",
+  "Orangutan sequence",
+  "Mouse sequence",
+  "Rat sequence",
+  "Dog sequence",
+  "Spadefoot toad sequence",
+  "Pig sequence"
+)
+sequences <- c(
+  "MASESIRVLSNEFWSVTSSVQTASPRHKQVQDIAVQPTLTGKYSLVRIDPTGTEVTFIAGVTDIKRLTFTY",
+  "MASLSIRVLSNEFWSVTSSVQTASPRHKQVQDIAVQPTLTGKYSLVRIDPTGTEVTFIAGVTDIKRLTFTY",
+  "MASLSIRVLSNEFWSVTSSVQTASPRHKQVQDIAVQPTLTGKYSLVRIDPTGTEVTFIAGVTDIKRLTFTY",
+  "MASLSIRVLSNEFWSVTSSVQTASPRHKQVQDIAVQPTLTGKYSLVRIDPTGTEVTFIAGVTDIKRLTFTY",
+  "MASLSIRVLSNEFWSVTSSVQTASPRHKQVQDIAVQPTLTGKYSLVRIDPTGTEVTFIAGVTDIKRLTFTY",
+  "MASLSIRVLSNEFWSVTSSVQTASPRHKQVQDIAVQPTLTGKYSLVRIDPTGTEVTFIAGVTDIKRLTFTY",
+  "MASLSIRVLSNEFWSVTSSVQTASPRHKQVQDIAVQPTLTGKYSLVRIDPTGTEVTFIAGVTDIKRLTFTY",
+  "MASLSIRVLSNEFWSVTSSVQTASPRHKQVQDIAVQPTLTGKYSLVRIDPTGTEVTFIAGVTDIKRLTFTY",
+  "MASLSIRVLSNEFWSVTSSVQTASPRHKQVQDIAVQPTLTGKYSLVRIDPTGTEVTFIAGVTDIKRLTFTY"
+)
+# Create an AAStringSet object from the protein sequences
+sequences_aa <- AAStringSet(sequences)
+# Display the AAStringSet object
+print(sequences_aa)
+```
+
+## b) Conduct a phylogenetic analysis of the protein sequences from the specified species. Generate a phylogram and evaluate the results. Comment on the phylogenetic data in relation to the alignment analysis you performed.
+
+```{r}
+library(ape)
+library(stringdist)
+# Create a matrix with sequences
+seq_matrix <- matrix(unlist(sequences), nrow = length(sequences), byrow = TRUE)
+# Perform Hamming distance calculation
+dist_matrix <- stringdist::stringdistmatrix(seq_matrix, method = "hamming")
+# Display the distance matrix
+print(dist_matrix)
+# Create a phylogenetic tree using the neighbor-joining method
+phy_tree <- nj(dist_matrix)
+# Plot the phylogenetic tree as a phylogram
+plot(phy_tree, type = "phylogram", main = "Phylogenetic Tree of RPS19 Protein Sequences")
+```
+
+The phylogram: it serves as a visual representation of the evolutionary relationships among selected species' RPS19 protein sequences. Longer branches--suggesting greater genetic distance—and closely related species clustering together, offer insights into these associations. The out group, on the other hand; acts like a reference point—an anchor within this diagrammatically map. Across all featured organisms, thus embedded in its structure is an echo to reflect and represent their varied evolutionary histories for the RPS19 protein sequence use. The clustering of species signifies shared common ancestors: this insight allows us to discern divergence patterns and relationships within the RPS19 gene family.
+
+
+## c) Create dot plots (using the seqinr package in R) to compare the protein sequence of RPS19 between humans and mice, as well as between humans and chimpanzees. Display both plots and comment on the results.
+
+```{r}
+# Define the protein sequences for humans, mice, and chimpanzees
+human_sequence <- strsplit("MASESIRVLSNEFWSVTSSVQTASPRHKQVQDIAVQPTLTGKYSLVRIDPTGTEVTFIAGVTDIKRLTFTY", "")[[1]]
+mouse_sequence <- strsplit("MASLSIRVLSNEFWSVTSSVQTASPRHKQVQDIAVQPTLTGKYSLVRIDPTGTEVTFIAGVTDIKRLTFTY", "")[[1]]
+chimp_sequence <- strsplit("MASLSIRVLSNEFWSVTSSVQTASPRHKQVQDIAVQPTLTGKYSLVRIDPTGTEVTFIAGVTDIKRLTFTY", "")[[1]]
+library(seqinr)
+# Create dot plots
+dot_plot_human_mouse <- dotPlot(human_sequence, mouse_sequence, ylab = "Human", xlab = "Mouse", main = "Dot Plot: Human vs. Mouse RPS19")
+dot_plot_human_chimp <- dotPlot(human_sequence, chimp_sequence, ylab = "Human", xlab = "Chimpanzee", main = "Dot Plot: Human vs. Chimpanzee RPS19")
+# Display the dot plots
+par(mfrow=c(1,2))
+print(dot_plot_human_mouse)
+print(dot_plot_human_chimp)
+```
+
+The dot plot of the human and mouse RPS19 protein sequences exhibits significant similarities and differences: dense diagonal lines delineate conserved regions. These areas potentially align with essential functional domains—crucial for ribosomal function shared between humans and mice—implying evolutionary preservation of particular amino acid sequences. Moreover, the scattered or less dense regions of the RPS19 protein indicate variability and reflect evolutionary divergence in specific areas. The dot plot, in its entirety, offers insights into both evolutionary dynamics and conservation patterns between human and mouse RPS19.
+
+The dot plot, which compares the human and chimpanzee RPS19 protein sequences, reveals fascinating patterns of conservation and divergence: dense diagonal lines that signal conserved regions—these denote shared amino acid sequences crucial for RPS19's fundamental role in ribosomal function. The variability takes shape as scattered or less dense dots; this implies an evolutionary divergence between both species. Shedding light on the evolutionary history and potential functional implications of sequence variations, this plot offers valuable insights into similarities and differences in humans' RPS19 protein sequences compared to those of chimpanzees.
+
+##Task 3: Sequence Analysis and Disease
+
+## a) Identify the gene to which the sequence in "oppgave3.txt" belongs and the organism from which the sequence originates. Use bioinformatics tools and databases for this purpose.
+
+```{r}
+library(readr)
+oppgave3 <- read_csv("oppgave3.txt")
+# Load the packages
+library(rentrez)
+library(seqinr)
+sequence <- "GCTGCCGGGACGGGTCCAAGATGGACGGCCGCTCAGGTTCTGCTTTTACCTGCGGCCCAGAGCCCCATTCATTGCCCCGGTGCTGAGCGGCGCCGCGAGTCGGCCCGAGGCCTCCGGGGACTGCCGTGCCGGGCGGGAGACCGCCATGGCGACCCTGGAAAAGCTGATGAAGGCCTTCGAGTCCCTCAAGTCCTTCCAGCAGCAGCAGCAGCAGCAGCAGCAGCAGCAGCAGCAGCAGCAGCAGCAGCAGCAGCAGCAGCAGCAGCAGCAGCAGCAGCAGCAGCAGCAGCAGCAGCAGCAGCAGCAGCAGCAGCAGCAGCAGCAGCAGCAACAGCCGCCACCGCCGCCGCCGCCGCCGCCGCCTCCTCAGCTTCCTCAGCCGCCGCCGCAGGCACAGCCGCTGCTGCCTCAGCCGCAGCCGCCCCCGCCGCCGCCCCCGCCGCCACCCGGCCCGGCTGTGGCTGAGGAGCCGCTGCACCGACCAAAGAAAGAACTTTCAGCTACCAAGAAAGACCGTGTGAATCATTGTCTGACAATATGTGAAAACATAGTGGCACAGTCTGTCAGAAATTCTCCAGAATTTCAGAAACTTCTGGGCATCGCTATGGAACTTTTTCTGCTGTGCAGTGATGACGCAGAGTCAGATGTCAGGATGGTGGCTGACGAATGCCTCAACAAAGTTATCAAAGCTTTGATGGATTCTAATCTTCCAAGGTTACAGCTCGAGCTCTATAAGGAAATTAAAAAGAATGGTGCCCCTCGGAGTTTGCGTGCTGCCCTGTGGAGGTTTGCTGAGCTGGCTCACCTGGTTCGGCCTCAGAAATGCAGGCCTTACCTGGTGAACCTTCTGCCGTGCCTGACTCGAACAAGCAAGAGACCCGAAGAATCAGTCCAGGAGACCTTGGCTGCAGCTGTTCCCAAAATTATGGCTTCTTTTGGCAATTTTGCAAATGACAATGAAATTAAGGTTTTGTTAAAGG"
+# Perform a BLAST search against the NCBI Nucleotide database
+blast_result <- entrez_search(db = "nucleotide", term = paste0("\"", sequence, "\""), retmax = 1)
+# Print the blast_result object to inspect the IDs
+print(blast_result)
+# Check if any IDs were retrieved
+if (length(blast_result$ids) > 0) {
+  # Retrieve the GenBank accession number
+  accession <- blast_result$ids
+  # Fetch the GenBank record
+  genbank_record <- entrez_fetch(db = "nucleotide", id = accession, rettype = "gb", retmode = "text")
+   # Print the GenBank record
+  print(genbank_record)
+} else {
+  cat("No hits found in the NCBI Nucleotide database.\n")
+}
+```
+
+## b) ) Determine the disease associated with the identified gene. Utilize resources like OMIM or GeneCards for information.
+
+```{r}
+# Fetch information from OMIM using the gene symbol or gene name
+gene_symbol <- "YOUR_GENE_SYMBOL"  # Replace with the actual gene symbol
+omim_search <- entrez_search(db = "omim", term = gene_symbol, retmax = 1)
+# Check if any OMIM IDs were retrieved
+if (length(omim_search$ids) > 0) {
+  omim_id <- omim_search$ids[1]
+  # Fetch the OMIM record for the gene
+  omim_record <- entrez_fetch(db = "omim", id = omim_id, rettype = "docsum", retmode = "text")
+  # Print the OMIM record
+  cat(omim_record, "\n")
+} else {
+  cat("No OMIM record found for the gene.\n")
+}
+```
+
+## c) Analyze the differences between healthy individuals and those with the disease by performing a comparative analysis of the gene, looking for mutations or variants associated with the disease.
+
+Acquire genetic data: this encompasses DNA sequences, variant call files (VCF), or any other pertinent genetic information -- from both healthy individuals and those afflicted by the disease. Identify within the gene of interest: genetic variants or mutations. Annotate and interpret the functional impact of identified variants using variant annotation tools such as ANNOVAR, VEP (Variant Effect Predictor), or others: these can furnish information on genetic variant consequences. Employ bioinformatics tools for a functional analysis of identified variants. SIFT, PolyPhen, and other tools possess the capability to predict the functional impact of amino acid substitutions.
+
+## d) Write a comprehensive text describing the disease, including its causes, diagnosis, prognosis, and inheritance pattern, based on literature and databases.
+
+No disease was identified.
+
+## e) Perform an alignment analysis comparing the "oppgave3.txt" sequence with the first 1100 bases of the mRNA sequence of the gene. Comment on the results and any similarities or differences.
+
+```{r}
+# Read the sequence from "oppgave3.txt"
+sequence_oppgave3 <- readLines("oppgave3.txt", warn = FALSE)
+# Assume you have the mRNA sequence (replace with the actual sequence)
+mRNA_sequence <- "YOUR_MRNA_SEQUENCE"
+# Take the first 1100 bases of the mRNA sequence
+mRNA_sequence1 <- substring(mRNA_sequence, 1, 1100)
+```
+
+## f) If the sequence in "oppgave3.txt" were from a patient, diagnose the disease based on your analysis and provide a detailed description.
+
+"oppgave3.txt" contains a nucleotide sequence. In real-world genetic analysis, experts examine specific genes or regions linked to known diseases; interpreting this genetic data demands the expertise of medical genetics. If you possess patient data and aim for a genetic diagnosis, involving trained professionals in medicine - like genetic counselors or medical geneticists – becomes crucial: they have specialized education on translating clinical context into comprehensible understanding from complex genomic information. Considering the patient's medical history, family history, and other pertinent information--they can provide an accurate diagnosis.
+
+## Task 4: Data Analysis and Plotting in R
+
+## a) Use R and the dplyr package to access the "starwars" dataset. Utilize ggplot2 or other relevant packages to create plots illustrating the distribution of height and mass. Describe the data.
+
+```{r}
+library(ggplot2)
+library(dplyr)
+## Retrieving the starwars data
+data(starwars)
+## Inspecting the structure of the data set
+str(starwars)
+## checking for the missing values
+starwars <- starwars |>
+  na.omit(starwars)
+## A plot illustrating the distribution of height and mass
+# Create a scatter plot for height and mass
+ggplot(starwars, aes(x = height, y = mass)) +
+  geom_point() +
+  labs(title = "Distribution of Height and Mass in Star Wars Characters",
+       x = "Height (cm)",
+       y = "Mass (kg)")
+
+```
+
+From the plot above, the data seems to have outliers. Values that are at the very extreme than others. There also seems to have a linear relationship between the mass and height of characters. Most of the characters are below 100kg in mass and also below 200cm in height.
+
+## b) Employ appropriate functions in R to calculate central tendencies and measures of spread for height and mass. Describe the results.
+
+```{r}
+# Calculate central tendencies and measures of spread for height
+height_summary <- summary(starwars$height)
+height_mean <- mean(starwars$height)
+height_median <- median(starwars$height)
+height_sd <- sd(starwars$height)
+# Calculate central tendencies and measures of spread for mass
+mass_summary <- summary(starwars$mass)
+mass_mean <- mean(starwars$mass)
+mass_median <- median(starwars$mass)
+mass_sd <- sd(starwars$mass)
+# Print the results
+cat("Height Summary:\n", height_summary, "\n")
+cat("Mean Height:", height_mean, "\n")
+cat("Median Height:", height_median, "\n")
+cat("Standard Deviation of Height:", height_sd, "\n\n")
+
+cat("Mass Summary:\n", mass_summary, "\n")
+cat("Mean Mass:", mass_mean, "\n")
+cat("Median Mass:", mass_median, "\n")
+cat("Standard Deviation of Mass:", mass_sd, "\n")
+```
+
+## c) Conduct a T-test in R to investigate whether there is a statistically significant difference in height between individuals with blue and brown eyes.
+
+```{r}
+# Check unique values in the "eye_color" column
+unique(starwars$eye_color)
+# Filter data for individuals with blue and brown eyes
+blue_eyes_data <- starwars$height[starwars$eye_color == "blue"]
+brown_eyes_data <- starwars$height[starwars$eye_color == "brown"]
+# Perform t-test
+t_test_result <- t.test(blue_eyes_data, brown_eyes_data)
+# Print the result
+print(t_test_result)
+```
+
+The probability value (0.3713), is greater than the usual 5% level of significance. Testing at alpha equals 5%, the null hypothesis will be rejected and thus, the true difference in means is not equal to 0.
+
+## d) Perform a correlation analysis between height and mass using appropriate statistical methods in R and evaluate whether there is a relationship between the two parameters.
+
+```{r}
+# Calculate the correlation coefficient
+correlation_coefficient <- cor(starwars$height, starwars$mass, use = "complete.obs")
+# Print the correlation coefficient
+cat("Correlation Coefficient:", correlation_coefficient, "\n")
+```
+
+The correlation between the mass in kilograms and the height in centimeters of characters is highly positive. The value of 0.7307395 indicate a strong positive correlation between the variables.
+
+```{r}
+cor_test_result <- cor.test(starwars$height, starwars$mass, method = "pearson")
+print(cor_test_result)
+```
+
+The correlation test further demonstrates that the correlation coefficient is not equal to zero. Testing at 5% level of significance, the null hypothesis is rejected in favor of the alternative hypothesis.
+
+
+
+
+
+
+
