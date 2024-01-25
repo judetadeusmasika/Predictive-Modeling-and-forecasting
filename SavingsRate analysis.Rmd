@@ -1,0 +1,301 @@
+---
+title: "Final 2023-24"
+output: html_document
+date: "2024-01-23"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+                      message = FALSE,
+                      warning = FALSE)
+```
+
+##Setting the working directory
+
+```{r}
+##Setting the working directory
+setwd("C:/Users/Baha/Downloads")
+```
+
+##Loading the required dataset
+##Question 1a)
+```{r}
+##Loading the required dataset
+##Question 1a)
+library(readxl)
+SavingsRate <-read_excel("SavingsRate.xlsx")
+## Display the last 6 rows of the loaded dataset
+tail(SavingsRate)
+```
+
+##Question 1b)
+
+```{r}
+##Question 1b)
+##Run a full regression analysis
+library(flextable)
+library(modelsummary)
+attach(SavingsRate)
+model1 <-lm(sr ~ pop15 + pop75 + dpi + ddpi + Europe, data = SavingsRate)
+modelsummary(model1)
+summary(model1)
+```
+
+
+```{r}
+## Exclude the variables that do not make sense and run the regression analysis again
+model2 <- lm(sr ~ pop15 + dpi + ddpi + Europe, data = SavingsRate)
+modelsummary(model2)
+summary(model2)
+anova(model2)
+```
+
+##Question 1c)
+
+```{r}
+##Post-hoc analysis
+plot(model2)
+```
+##Question 1d)
+
+```{r}
+##Question 1d)
+# Calculate VIF for model2
+vif_values <- car::vif(model2)
+# Display VIF values
+vif_values
+```
+
+##Question 1e)
+
+```{r}
+##Question 1e)
+# Add interaction term to the model
+model3 <- lm(sr ~ pop15 + dpi + ddpi + Europe + dpi:Europe, data = SavingsRate)
+# Summary of model3
+modelsummary(model3)
+summary(model3)
+anova(model3)
+```
+
+```{r}
+##Check the anova test for model comparison
+anova(model2, model3)
+```
+
+##Question 2a)
+
+```{r}
+##Question 2a)
+# Subset the data for European and non-European countries
+ddpi_europe <- SavingsRate$ddpi[SavingsRate$Europe == 1]
+ddpi_non_europe <- SavingsRate$ddpi[SavingsRate$Europe == 0]
+# Perform the t-test
+t_test_result <- t.test(ddpi_europe, ddpi_non_europe)
+# Print the results
+print(t_test_result)
+```
+
+##Question 3
+
+```{r}
+##Question 3
+# Function to print the Tic-Tac-Toe board
+print_board <- function(board) {
+  cat(" ", board[1,1], " | ", board[1,2], " | ", board[1,3], "\n")
+  cat("----|----|----\n")
+  cat(" ", board[2,1], " | ", board[2,2], " | ", board[2,3], "\n")
+  cat("----|----|----\n")
+  cat(" ", board[3,1], " | ", board[3,2], " | ", board[3,3], "\n")
+}
+
+# Function to check for a winner
+check_winner <- function(board, player) {
+  # Check rows and columns
+  for (i in 1:3) {
+    if (all(board[i,] == player) || all(board[,i] == player)) {
+      return(TRUE)
+    }
+  }
+  
+  # Check diagonals
+  if (all(diag(board) == player) || all(diag(board[,3:1]) == player)) {
+    return(TRUE)
+  }
+  
+  return(FALSE)
+}
+
+# Function to play Tic-Tac-Toe
+play_tic_tac_toe <- function() {
+  board <- matrix(" ", nrow = 3, ncol = 3)
+  players <- c("X", "O")
+  turn <- 1
+  
+  while (TRUE) {
+    print_board(board)
+    cat("Player", players[turn], "'s turn. Enter row (1-3) and column (1-3): ")
+    row <- as.numeric(readline("Row: "))
+    col <- as.numeric(readline("Column: "))
+    
+    if (board[row, col] == " ") {
+      board[row, col] <- players[turn]
+      
+      if (check_winner(board, players[turn])) {
+        print_board(board)
+        cat("Player", players[turn], "wins!\n")
+        break
+      }
+      
+      if (" " %in% board) {
+        turn <- 3 - turn  # Switch player
+      } else {
+        print_board(board)
+        cat("It's a draw!\n")
+        break
+      }
+    } else {
+      cat("Cell already occupied. Try again.\n")
+    }
+  }
+}
+
+# Run the game
+play_tic_tac_toe()
+```
+
+
+##Question 4
+
+```{r}
+##Question 4
+# Function to get a random move for the computer
+get_random_move <- function(board) {
+  empty_positions <- which(board == " ", arr.ind = TRUE, useNames = TRUE)
+  if (length(empty_positions) > 0) {
+    random_position <- sample(1:length(empty_positions), 1)
+    return(empty_positions[random_position, ])
+  } else {
+    return(NULL)
+  }
+}
+
+# Function to play Tic-Tac-Toe against the computer
+play_tic_tac_toe_vs_computer <- function() {
+  board <- matrix(" ", nrow = 3, ncol = 3)
+  players <- c("X", "O")
+  turn <- 1
+  
+  while (TRUE) {
+    print_board(board)
+    
+    if (turn == 1) {
+      cat("Player X's turn. Enter row (1-3) and column (1-3): ")
+      row <- as.numeric(readline("Row: "))
+      col <- as.numeric(readline("Column: "))
+      
+      if (board[row, col] == " ") {
+        board[row, col] <- players[turn]
+      } else {
+        cat("Cell already occupied. Try again.\n")
+        next
+      }
+    } else {
+      cat("Computer's turn.\n")
+      Sys.sleep(1)  # Add a delay to make it more user-friendly
+      move <- get_random_move(board)
+      
+      if (!is.null(move)) {
+        board[move[1], move[2]] <- players[turn]
+      }
+    }
+    
+    if (check_winner(board, players[turn])) {
+      print_board(board)
+      if (turn == 1) {
+        cat("Player X wins!\n")
+      } else {
+        cat("Computer wins!\n")
+      }
+      break
+    }
+    
+    if (" " %in% board) {
+      turn <- 3 - turn  # Switch player
+    } else {
+      print_board(board)
+      cat("It's a draw!\n")
+      break
+    }
+  }
+}
+
+# Run the game against the computer
+play_tic_tac_toe_vs_computer()
+```
+
+##Question 5
+
+```{r}
+##Question 5
+##Load the dataset
+lecturer <-read_excel("LecturerDataExcel.xlsx")
+tail(lecturer)
+```
+
+#Question a)
+
+```{r}
+#Question a)
+library(tidyverse)
+# Create a boxplot
+lecturer |>
+  ggplot(aes(x = factor(job), y = friends, fill = factor(job))) +
+  geom_boxplot() +
+  labs(title = "Mean Number of Friends for Students and Lecturers",
+       x = "Job Type",
+       y = "Number of Friends") +
+  scale_fill_manual(values = c("#66c2a5", "#fc8d62"))  # Colors for students and lecturers
+```
+
+#Question b)
+
+```{r}
+#Question b)
+# Calculate mean and standard error
+summary_data <- lecturer %>%
+  group_by(job) %>%
+  summarise(mean_alcohol = mean(alcohol),
+            sd_alcohol = sd(alcohol),
+            se_alcohol = sd_alcohol / sqrt(n()))
+summary_data
+
+# Create the error bar chart
+ggplot(summary_data, aes(x = factor(job), y = mean_alcohol, fill = factor(job))) +
+  geom_bar(stat = "identity", position = "dodge", color = "black") +
+  geom_errorbar(aes(ymin = mean_alcohol - se_alcohol, ymax = mean_alcohol + se_alcohol),
+                width = 0.2, position = position_dodge(0.9), color = "black") +
+  labs(title = "Mean Alcohol Consumption for Students and Lecturers",
+       x = "Job Type",
+       y = "Mean Alcohol Consumption") +
+  scale_fill_manual(values = c("Darkblue", "Darkred"))  # Using the same color for bars
+```
+
+#Question c)
+
+```{r}
+#Question c)
+# Convert 'job' to a factor
+lecturer$job <- as.factor(lecturer$job)
+
+# Create a scatter plot with regression lines and confidence intervals
+ggplot(lecturer, aes(x = alcohol, y = happiness, color = job)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = TRUE) +
+  labs(title = "Scatterplot of Alcohol Consumption and Happiness",
+       x = "Alcohol Consumption",
+       y = "Happiness",
+       color = "Job type") +
+  scale_color_manual(values = c("Darkblue", "Darkred"))
+```
+
