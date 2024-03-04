@@ -1,0 +1,194 @@
+---
+title: "Data Management and Descriptive statistics"
+output: html_document
+date: "2024-03-04"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+                      warning = FALSE,
+                      message = FALSE)
+```
+
+
+#The name of the assignment is Data management and Descriptive statistics, name of student and the date when you submit  the assignment.
+
+```{r}
+#Loading the required packages
+library(readxl)
+library(tidyverse)
+library(stats)
+```
+
+
+```{r}
+#Loading the two data sets to be used for analysis
+#Set the working directory
+setwd("C:/Users/Baha/Downloads")
+#Upload the Poverty headcount ratio at $2.15 a day (20 17 PPP) (% of population) data
+Poverty <-read_excel("C:/Users/Baha/Downloads/SI.POV.DDAY.xlsx")
+#Showing the first entries of the original dataset
+head(Poverty)
+#Upload the Incidence of tuberculosis (per 100,000 people) data
+TB <-read_excel("C:/Users/Baha/Downloads/SH.TBS.INCD.xlsx")
+head(TB)
+```
+
+```{r}
+dim(TB)
+dim(Poverty)
+```
+
+#Provide description of each original data set in terms of the number of observations and variables.
+
+#Incidence of Tuberculosis Data:
+
+The number of observations—directly correlating to the available data for each country—determines: the more countries with accessible data, the higher this count will be. This data set has 266 observations and 67 variables.
+
+Number of variables: There are several variables, including:
+
+Country Name: Name of the country.
+
+Country Code: Code assigned to each country.
+
+Indicator Name: Name of the indicator (presumably related to the incidence of tuberculosis).
+
+Indicator Code: Code assigned to the indicator.
+
+From 1960 to 2022, we have data for each year that indicates either the incidence of tuberculosis or related measures; these serve as our variables.
+
+#Poverty Data set:
+
+The number of observations corresponds to the availability of poverty data for each country: it mirrors—similarly to the previous data set—the number of countries involved. This dataset has 266 observations and 67 variables.
+
+Number of variables: The variables include:
+
+Country Name: Name of the country.
+
+Country Code: Code assigned to each country.
+
+Indicator Name: Name of the indicator (related to poverty).
+
+Indicator Code: Code assigned to the poverty indicator.
+
+From 1960 to 2022, we have data for each year; this data indicates poverty measures or related indicators.
+
+
+#4.	Construct the working data set for the assigned years and indicators by removing unnecessary variables and merging the necessary parts of data.
+
+The working data set will have the variables Country name, Indicator name and the assigned year. For the poverty rates data, the assigned year is 2004 and the incidence of TB data is 2005.
+
+
+```{r}
+#Working data for the Poverty rates data
+library(dplyr)
+attach(Poverty)
+WD_POV <-Poverty %>% 
+  select(`Country Name`, `Indicator Name`, "2004")
+detach(Poverty)
+tail(WD_POV)
+```
+
+
+```{r}
+#Working data for the Incidence of TB data
+attach(TB)
+WD_TB <-TB %>% 
+  select(`Country Name`, `Indicator Name`, "2005")
+detach(TB)
+head(WD_TB)
+```
+
+# Clean the working dataset
+
+
+```{r}
+#Working data set for the poverty rates
+clean_data <-WD_POV %>% 
+  na.omit(WD_POV)
+dim(clean_data)
+head(clean_data)
+```
+
+
+```{r}
+#Working data for the incidence of TB 
+TB_clean <-WD_TB %>% 
+  na.omit(WD_TB)
+dim(TB_clean)
+head(TB_clean)
+```
+
+#Merge the two datasets
+
+```{r}
+# Perform the merge
+TB_POV <- left_join(clean_data, TB_clean, by = "Country Name")
+dim(TB_POV)
+head(TB_POV)
+```
+
+
+#Construct the indicator variables which identify if an observation is an outl ier (= 1) or not (=O) for each of two variables
+
+```{r}
+# Checking for outliers in the "2004" variable
+TB_POV$outlier_2004 <- ifelse(abs(TB_POV$`2004` - mean(TB_POV$`2004`)) > 2 * sd(TB_POV$`2004`), 1, 0)
+
+# Checking for outliers in the "2005" variable
+TB_POV$outlier_2005 <- ifelse(abs(TB_POV$`2005` - mean(TB_POV$`2005`)) > 2 * sd(TB_POV$`2005`), 1, 0)
+
+# Display the merged data
+head(TB_POV)
+```
+
+
+```{r}
+# Display standard descriptive statistics for each variable with outliers
+cat("Descriptive statistics for '2004' with outliers:\n")
+summary(TB_POV$`2004`)
+cat("\n")
+
+cat("Descriptive statistics for '2005' with outliers:\n")
+summary(TB_POV$`2005`)
+cat("\n")
+
+# Identify outliers using box plots
+boxplot(TB_POV$`2004`, main = "Boxplot of 2004 with Outliers")
+boxplot(TB_POV$`2005`, main = "Boxplot of 2005 with Outliers")
+
+# Display standard descriptive statistics for variable without outliers
+cat("Descriptive statistics for '2004' without outliers:\n")
+summary(TB_POV$`2004`)
+cat("\n")
+
+cat("Descriptive statistics for '2005' without outliers:\n")
+summary(TB_POV$`2005`)
+cat("\n")
+```
+
+
+# Run a linear regression of poverty on TB rate and interpret the results.
+
+```{r}
+library(flextable)
+library(modelsummary)
+linear_model <-lm(TB_POV$`2004`~TB_POV$`2005`)
+modelsummary(linear_model)
+summary(linear_model)
+```
+
+
+```{r}
+plot(linear_model)
+```
+
+
+
+```{r}
+# Create a scatter plot to visualize the relationship between TB and poverty
+plot(TB_POV$`2004`, TB_POV$`2005`, 
+     xlab = "TB", ylab = "Poverty", main = "Scatter Plot of TB vs. Poverty")
+```
+
+
