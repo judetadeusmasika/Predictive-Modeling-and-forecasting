@@ -1,0 +1,182 @@
+---
+title: "Stroke prediction-Machine learning"
+author: "JUDETADEUS MASIKA"
+date: "2024-04-06"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+                      warning = FALSE,
+                      message = FALSE)
+```
+
+
+#We will use a dataset that contains information on patients who are at risk of having a stroke and those who are not. Here we are using the Stroke Prediction Dataset from Kaggle to make predictions. Our task is to examine existing patient records in the training set and use that knowledge to predict whether a patient in the evaluation set is likely to have a stroke or not.
+
+
+```{r}
+#Importing the required packages
+library(tidyverse)
+library(caret)
+library(randomForest)
+library(readxl)
+```
+
+#The next step is to import and preview our data using the following command –
+
+```{r}
+#Set the working directory
+setwd("C:/Users/Baha/Downloads")
+#Read the data
+stroke <-read_xlsx("C:/Users/Baha/Downloads/healthcare-dataset-stroke-data.xlsx")
+dplyr::glimpse(stroke)
+```
+
+
+#Our data glimpse shows that we have 5110 observations and 12 variables. Next, we will use the ‘summary()’ function, which will give us a nice overall perspective of our data’s statistical distribution.
+
+```{r}
+summary(data.frame(stroke))
+```
+
+#Since the summary shows there is only one row for the ‘Other’ gender, we can drop the row for this observation using –
+
+```{r}
+#drop the column with 'other' (since there is only one row)
+stroke <-stroke[!stroke$gender == 'other',]
+#Check for missing values
+colSums(is.na(stroke))
+```
+
+#Although bmi values can be estimated using a person’s height and weight, these parameters are not provided in this dataset. However, removing or replacing the missing bmi values would be better. Because 201 missing values represent 5% of the total entries in the column, it could be beneficial to replace the missing values with a mean value, assuming that the mean values would not change the findings. We will use the following syntax to replace missing values in a bmi column:
+
+```{r}
+#Impute the dataset
+stroke$bmi[is.na(stroke$bmi)] <-mean(stroke$bmi, na.rm = TRUE)
+dplyr::glimpse(stroke)
+```
+#Because the data frame has columns of various data types, let us use the following code to convert all of its character columns to factors:
+
+```{r}
+stroke$stroke <-factor(stroke$stroke, levels = c(0,1), labels = c("No","Yes"))
+stroke$gender <-as.factor(stroke$gender)
+stroke$hypertension <-factor(stroke$hypertension, levels = c(0,1), labels = c("No","Yes"))
+stroke$heart_disease <-factor(stroke$heart_disease, levels = c(0,1), labels = c("No","Yes"))
+stroke$ever_married <-as.factor(stroke$ever_married)
+stroke$work_type <-as.factor(stroke$work_type)
+stroke$Residence_type <-as.factor(stroke$Residence_type)
+stroke$smoking_status <-as.factor(stroke$smoking_status)
+stroke$bmi <-as.numeric(stroke$bmi)
+```
+
+#Since the missing values and data types have been properly configured, it is time to generate some graphs from the data to gain insights. We will plot the distribution for features – gender, hypertension,heart_disease and ever_married.
+
+```{r}
+p1 <-ggplot(stroke, 
+            aes(x ="", y = gender, fill = gender))+
+  geom_bar(stat = "identity", width = 1) +
+  coord_polar("y", start = 0);p1
+```
+
+```{r}
+p2 <-ggplot(data = stroke, mapping = aes(x ="", y= hypertension, 
+                                         fill = hypertension)) +
+  geom_bar(stat = "identity", width = 1) +
+  coord_polar("y", start = 0);p2
+```
+
+```{r}
+p3 <-ggplot(data = stroke, mapping = aes(x ="", y = heart_disease, fill = heart_disease)) +
+  geom_bar(stat = "identity", width = 1) +
+  coord_polar("y", start = 0);p3
+```
+
+```{r}
+p4 <-ggplot(data = stroke, mapping =aes(x = "", y = ever_married, fill = ever_married)) +
+  geom_bar(stat = "identity", width = 1) +
+  coord_polar("y", start = 0);p4
+```
+
+```{r}
+library(grid)
+library(gridExtra)
+grid.arrange(p1,p2,p3,p4, ncol = 2)
+```
+
+#Further, we can visualize the distribution of the next set of features – residence_type, and stroke.
+
+```{r}
+p5 <-ggplot(data = stroke, mapping = aes(x ="", y = Residence_type, fill = Residence_type)) +
+  geom_bar(stat = "identity", width = 1) +
+  coord_polar("y", start = 0)
+p6 <-ggplot(data = stroke, mapping = aes(x = "", y = stroke, fill = stroke)) +
+  geom_bar(stat = "identity", width = 1) +
+  coord_polar("y", start = 0)
+grid.arrange(p5,p6, ncol = 2)
+```
+
+#All these graphs and charts provide a lot of useful information about the dataset, such as –
+
+ Less than 10% of people have hypertension
+ Around 5% of people in the dataset have heart disease
+ Equal split for the feature ‘residence type’, i.e., 50% of the population comes      from rural regions and 50% from urban
+ 57 per cent of people are working in the private sector & more than 65 percent are married
+
+#We can create a few additional bar charts to see how each of these variables relates to the target variable, which is the stroke possibility for the individual.
+
+```{r}
+p7 <-ggplot(data = stroke) +
+  geom_bar(mapping = aes(x = gender, fill = stroke))
+p8 <-ggplot(data = stroke) +
+  geom_bar(mapping = aes(x = hypertension, fill = stroke))
+p9 <-ggplot(data = stroke) +
+  geom_bar(mapping = aes(x = heart_disease, fill = stroke))
+p10 <-ggplot(data = stroke) +
+  geom_bar(mapping = aes(x = ever_married, fill = stroke))
+grid.arrange(p7,p8,p9,p10, ncol = 2)
+```
+
+```{r}
+p11 <-ggplot(data = stroke) +
+  geom_bar(mapping = aes(x = work_type, fill = stroke))
+p12 <-ggplot(data = stroke) +
+  geom_bar(mapping = aes(x = Residence_type, fill = stroke))
+p13 <-ggplot(data = stroke) +
+  geom_bar(mapping = aes(x = smoking_status, fill = stroke))
+grid.arrange(p11,p12,p13, ncol = 1)
+```
+
+#Model building and prediction
+
+#After the Exploratory Data Analysis (EDA), the next step is to split our data into training and test datasets. We use the following code
+
+```{r}
+#Let's split the final dataset into training and testing set
+n_obs <-nrow(stroke)
+split <-round(n_obs*0.7)
+train <-stroke[1:split,]
+#create test data
+test <-stroke[(split +1):nrow(stroke),]
+dim(train)
+dim(test)
+```
+
+#We use Random Forest algorithm for this problem as it is normally used in supervised learning since our problem has only two possible outcomes. To set up the model, we will first use ‘set.seed’ to select a random seed and make the model reproducible. Next, we call the randomForest classifier and point it to ‘stroke’ column for the outcome and provide the ‘train’ set as input.
+
+```{r}
+#modelling
+rf_model <-randomForest(formula = stroke ~., data = train)
+rf_model
+```
+
+#We get the information from the confusion matrix, and Out-of-Bag (OOB) estimate of error rate (7.16%), the number of trees (500), the variables at each split (3), and the function used to build the classifier (randomForest). We must evaluate the model’s performance on similar data once trained on the training set. We will make use of the test dataset for this. Let us print the confusion matrix to see how our classification model performed on the test data
+
+
+```{r}
+confusionMatrix(predict(rf_model, test), test$stroke)
+```
+
+#We can see that the accuracy is nearly 100% with a validation dataset, suggesting that the model was trained well on the training data.
