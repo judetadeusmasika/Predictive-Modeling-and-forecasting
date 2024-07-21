@@ -119,9 +119,10 @@ plot(tree2) ##overfitted tree
 library(randomForest)
 #random forest model
 rand_model <-caret::train(x_train, y_train, method ="rf",
-tuneGrid=expand.grid(mtry=seq(5, ncol(x_train),by=5)),
+tuneGrid=expand.grid(mtry=seq(5, ncol(heart),by=5)),
 trControl = trainControl(method = "cv", number = 5, verboseIter = T))
 rand_model
+max(rand_model$results$Accuracy)
 # Get variable importance
 var_imp <- varImp(rand_model, scale = FALSE)
 var_imp
@@ -150,7 +151,7 @@ results <- data.frame(Model = c(rand_model$method,neu_net_model$method, xgboost_
 results %>% ggplot(aes(x=Model, y=Accuracy, label=paste(round(100*Accuracy,1),"%"))) +
   geom_col(fill="steelblue") + theme_minimal() + geom_label() +
   ggtitle("Accuracy in the training data by algorithm")
-#######  STEP 7: MODEL EVALUATION AGAINST THE TEST DATA###########################################
+#######  STEP 7: MODEL EVALUATION AGAINST THE TEST DATA ###########################################
 predictions <-predict(xgboost_model, newdata = x_test)
 confusionMatrix(predictions, y_test)
 precision(predictions, y_test) ##proportion of true positive predictions relative to all “positive” predictions
