@@ -1,0 +1,260 @@
+---
+title: "Simple classification models"
+author: "JUDETADEUS MASIKA"
+date: "2024-06-28"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+                      message = FALSE,
+                      warning = FALSE)
+```
+
+
+#Example: High-earners in the 1994 United States Census
+
+A marketing analyst might be interested in finding factors that can be used to predict whether a potential customer is a high-earner. The 1994 United States Census provides information that can inform such a model, with records from 32,561 adults that include a binary variable indicating whether each person makes greater or less than $$50,000 (nearly $90,000 in 2020 after accounting for inflation)$$. We will use the indicator of high income as our response variable.
+
+
+```{r}
+#loading the libraries required
+library(tidyverse)
+library(mdsr)
+url <- "http://archive.ics.uci.edu/ml/machine-learning-databases/adult/adult.data"
+census <-read_csv(url, col_names = c(
+    "age", "workclass", "fnlwgt", "education", 
+    "education_1", "marital_status", "occupation", "relationship", 
+    "race", "sex", "capital_gain", "capital_loss", "hours_per_week", 
+    "native_country", "income"
+  )
+) %>% 
+  mutate(income = factor(income))
+glimpse(census)
+```
+
+#lets split the census dataset into the training and testing sets; the parsnip package used for model fitting and the yardstick package used for model evaluation, all within the tidymodels package.
+
+```{r}
+library(tidymodels)
+n<-nrow(census)
+split_census <-census %>% 
+  initial_split(prop = 0.8)
+train <-split_census %>% 
+  training()
+test <-split_census %>% 
+  testing()
+list(train, test) %>% 
+  map_int(nrow)
+```
+
+#We first compute the observed percentage of high earners in the training set as ¯π.
+
+```{r}
+pi_bar <- train %>%
+  count(income) %>%
+  mutate(pct = n / sum(n)) %>%
+  filter(income == ">50K") %>%
+  pull(pct)
+pi_bar
+```
+
+#Note that only 24.2% of the sample make more than $50k
+
+#the null model
+
+Since we know ¯π, it follows that the accuracy of the null model is 1−¯π, which is about 76%, since we can get that many right by just predicting that everyone makes less than $50k.
+
+```{r}
+train %>% 
+  count(income) %>% 
+  mutate(pct = n / sum(n))
+```
+
+While we can compute the accuracy of the null model with simple arithmetic, when we compare models later, it will be useful to have our null model stored as a model object. We can create such an object using tidy models by specifying a logistic regression model with no explanatory variables. The computational engine is glm because glm() is the name of the R function that actually fits vocab("generalized linear models") (of which logistic regression is a special case).
+
+```{r}
+model_null <-logistic_reg(mode = "classification") %>% 
+  set_engine("glm") %>% 
+  fit(income~1, data = train)
+```
+
+
+After using the predict() function to compute the predicted values, the yardstick package will help us compute the accuracy.
+
+```{r}
+library(yardstick)
+pred <- train %>% 
+  select(income, capital_gain) %>% 
+  bind_cols(predict(model_null, new_data=train, type ="class")) %>% 
+  rename(income_null=.pred_class)
+accuracy(pred, income, income_null)
+```
+
+Another important tool in verifying a model’s accuracy is called the confusion matrix (really). Simply put, this is a two-way table that counts how often our model made the correct prediction. Note that there are two different types of mistakes that our model can make: predicting a high income when the income was in fact low (a Type I error), and predicting a low income when the income was in fact high (a Type II error).
+
+```{r}
+confusion_null <-pred %>% 
+  conf_mat(truth = income, estimate = income_null)
+confusion_null
+```
+
+Note again that the null model predicts that everyone is a low earner, so it makes many Type II errors (false negatives) but no Type I errors (false positives).
+
+#Logistic regression
+
+Beating the null model shouldn’t be hard. Our first attempt will be to employ a simple logistic regression model. First, we’ll fit the model using only one explanatory variable: capital_gain. This variable measures the amount of money that each person paid in capital gains tax. Since capital gains are accrued on assets (e.g., stocks, houses), it stands to reason that people who pay more in capital gains are likely to have more wealth and, similarly, are likely to have high incomes. In addition, capital gains is directly related since it is a component of total income.
+
+```{r}
+model_1 <-logistic_reg(mode = "classification") %>% 
+  set_engine("glm") %>% 
+  fit(income ~ capital_gain, data = train)
+```
+
+
+```{r}
+train_plus <-train %>% 
+  mutate(high_earner = as.integer(income ==">50k"))
+attach(train_plus)
+ggplot(train_plus, 
+       aes(capital_gain, high_earner)) +
+  geom_count(position = position_jitter(width = 0, height = 0.05), 
+             alpha=0.5) +
+  geom_smooth(method = "glm",
+              method.args = list(family = "binomial"),
+              color ="dodgerblue", lty =2, se=FALSE) +
+  geom_hline(aes(yintercept=0.5), linetype =3) +
+  scale_x_log10(labels=scales::dollar)
+```
+
+#How accurate is this model
+
+```{r}
+pred <- pred %>%
+  bind_cols(
+    predict(model_1, new_data = train, type = "class")
+  ) %>%
+  rename(income_log_1 = .pred_class)
+
+confusion_log_1 <- pred %>%
+  conf_mat(truth = income, estimate = income_log_1)
+
+confusion_log_1
+```
+
+```{r}
+accuracy(pred, income, income_log_1)
+```
+
+we graphically compare the confusion matrices of the null model and the simple logistic regression model. The true positives of the latter model are an important improvement.
+
+```{r}
+autoplot(confusion_null) +
+  geom_label(
+    aes(
+      x = (xmax + xmin) / 2, 
+      y = (ymax + ymin) / 2, 
+      label = c("TN", "FP", "FN", "TP")
+    )
+  )
+autoplot(confusion_log_1) +
+  geom_label(
+    aes(
+      x = (xmax + xmin) / 2, 
+      y = (ymax + ymin) / 2, 
+      label = c("TN", "FP", "FN", "TP")
+    )
+  )
+```
+
+Visual summary of the predictive accuracy of the null model (left) versus the logistic regression model with one explanatory variable (right). The null model never predicts a positive. 
+
+Using capital_gains as a single explanatory variable improved the model’s accuracy on the training data to 80%, a notable increase over the null model’s accuracy of 75.9%.
+
+We can easily interpret the rule generated by the logistic regression model here, since there is only a single predictor.
+
+```{r}
+broom::tidy(model_1)
+```
+
+
+Recall that logistic regression uses the logit function to map predicted probabilities to the whole real line. We can invert this function to find the value of capital gains that would yield a predicted value of 0.5.
+
+We can confirm that when we inspect the predicted probabilities, the classification shifts from <=50K to >50K as the value of captial_gain jumps from $4,101 to $4,386. For these observations, the predicted probabilities jump from 0.494 to 0.517.
+
+```{r}
+income_probs<-pred %>% 
+  select(income, income_log_1, capital_gain) %>% 
+  bind_cols(predict(model_1, new_data=train, type = "prob")) 
+income_probs %>% 
+  rename(rich_prob=`.pred_>50K`) %>% 
+  distinct() %>% 
+  filter(abs(rich_prob-0.5)<0.02) %>% 
+  arrange(desc(rich_prob))
+```
+
+Note: Thus, the model says to call a taxpayer high income if their capital gains are above $4,102.
+
+But why should we restrict our model to one explanatory variable? Let’s fit a more sophisticated model that incorporates the other explanatory variables.
+
+```{r}
+options(scipen = 999)
+model_all <-logistic_reg(mode = "classification") %>% 
+  set_engine("glm") %>% 
+  fit(income ~age + workclass + education + marital_status +
+        occupation + relationship + race + sex + capital_gain + capital_loss +
+        hours_per_week, data = train)
+library(modelsummary)
+modelsummary(model_all)
+```
+
+```{r}
+pred<-pred %>% 
+  bind_cols(
+    predict(model_all, new_data=train, 
+            type="class")
+  ) %>% 
+  rename(income_all=.pred_class)
+
+pred %>% 
+  conf_mat(truth = income, estimate = income_all)
+```
+
+
+```{r}
+accuracy(pred,income, income_all)
+```
+
+Not surprisingly, by including more explanatory variables, we have improved the predictive accuracy on the training set. Unfortunately, predictive modeling is not quite this easy. In the next section, we’ll see where our naïve approach can fail.
+
+```{r}
+income_probs<-pred %>% 
+  select(income, income_all,capital_gain) %>% 
+  bind_cols(predict(model_all, new_data=train, type = "prob"))
+head(income_probs)
+```
+
+```{r}
+income_probs %>%
+  group_by(rich = `.pred_>50K` > 0.5) %>%
+  count() %>%
+  mutate(pct = n / nrow(income_probs))
+```
+
+A better alternative would be to use the overall observed percentage (i.e., 24%) as a threshold instead:
+
+```{r}
+income_probs %>%
+  group_by(rich = `.pred_>50K` > pi_bar) %>%
+  count() %>%
+  mutate(pct = n / nrow(income_probs))
+```
+
+
+```{r}
+train %>% 
+ skim(capital_gain)
+test %>% 
+  skim(capital_gain)
+```
+
