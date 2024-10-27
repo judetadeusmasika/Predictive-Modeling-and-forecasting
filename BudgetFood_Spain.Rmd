@@ -1,0 +1,371 @@
+---
+title: "Budget Share of Food for Spanish Households"
+output: pdf_document
+latex_engine: xalatex
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE,
+                      message = FALSE)
+```
+
+# Introduction
+
+This project works on the 'BudgetFood' dataset that contains at least 5 different predictor variables and one continuous variable. The aim of the study is to produce a descriptive model and the summary of findings based on the hypothesis formulated.
+
+
+```{r}
+## load the necessary packages required
+library(tidyverse)
+library(dplyr)
+library(Ecdat)
+library(gt)
+library(ggplot2)
+library(corrplot)
+library(psych)
+library(ggpubr)
+## load in the dataset from the R program
+data("BudgetFood")
+## view the first 10 rows of the loaded dataset
+BudgetFood %>% 
+  head(n=10) %>% 
+  gt()
+```
+
+# 1. Discussion of the Question
+
+For this project using the "BudgetFood" dataset, the main question that is likely to be answered revolves around understanding the factors that influence the percentage of total household expenditure spent on food. Specifically, the model could aim to identify how variables such as total household expenditure, the age of the reference person, household size, town size, and the sex of the reference person impact the budget share allocated to food. The goal is to produce a descriptive model that captures the relationship between these predictors and food expenditure share, providing insights into the spending behavior of Spanish households in 1980. The findings will help determine which variables significantly affect household spending on food, potentially guiding economic or policy-related decisions.
+
+
+# 2. Data Description
+
+## a) Citing the Dataset
+
+The "BudgetFood" dataset originates from a cross-sectional study conducted in Spain in 1980, focusing on household expenditures, specifically the share of total expenditure allocated to food. This dataset includes 23,972 observations, where each observation represents a household. It provides insights into the socioeconomic and demographic characteristics of these households and their spending behaviors. The dataset is publicly available for educational and research purposes. Citation: "BudgetFood: Budget Share of Food for Spanish Households, 1980. Spain."
+
+## b) Summary of the Dataset
+
+The BudgetFood dataset is designed to study the spending patterns of Spanish households, particularly the percentage of total household expenditure spent on food. It includes several variables:
+
+wfood, the dependent variable, represents the percentage of total expenditure spent on food.
+totexp captures the total expenditure of the household, providing a direct measure of household consumption.
+age refers to the age of the reference person in the household.
+size represents the size of the household, which may influence how spending is allocated across needs, including food.
+town categorizes the size of the town in which the household is located, with five levels ranging from small towns to large urban areas.
+sex refers to the gender of the reference person in the household, which can also play a role in decision-making regarding expenditure.
+
+This dataset offers a comprehensive view of the factors that may impact food spending in Spanish households during the period of study.
+
+## c) Descriptive analysis of the data
+
+### Histograms with fitted distributions
+
+```{r}
+df <-BudgetFood
+colSums(is.na(df)) ## the variable sex has 1 missing value
+# Histogram and density plot for wfood
+ggplot(df, aes(x = wfood)) + 
+  geom_histogram(aes(y = ..density..), bins = 30, fill = 'lightblue', color = 'black') +
+  geom_density(color = 'red') +
+  ggtitle('Histogram of Budget Share of Food (wfood)') +
+  xlab('Percentage of Expenditure on Food') +
+  ylab('Density')
+```
+
+
+The histogram of the budget share of food (wfood) is positive and symmetrical, indicating that most households allocate a relatively balanced proportion of their income to food expenses. A symmetrical distribution suggests that the budget share of food is not heavily skewed toward either low or high values, implying that there is a consistent pattern across households in terms of how much they spend on food relative to their total expenditure. Economically, this indicates that food remains a stable and essential part of household budgets, regardless of income levels, reinforcing the idea that food expenditure is relatively inelastic. Households of varying financial capacities tend to allocate similar portions of their income to food, suggesting limited room for substantial decreases in food spending even as income rises. This stability is critical for understanding consumer behavior and planning policies related to food pricing, subsidies, and welfare programs, as it underscores the essential nature of food in household consumption patterns.
+
+
+```{r}
+# Histogram and density plot for totexp
+ggplot(df, aes(x = totexp)) + 
+  geom_histogram(aes(y = ..density..), bins = 30, fill = 'lightgreen', color = 'black') +
+  geom_density(color = 'red') +
+  ggtitle('Histogram of Total Expenditure (totexp)') +
+  xlab('Total Household Expenditure') +
+  ylab('Density')
+```
+
+
+The histogram of total expenditure (totexp) is right-skewed, indicating that most households tend to have lower total expenditures, with a smaller number of households spending significantly more. This right skew means that the distribution has a long tail on the right-hand side, where higher expenditures are less common but present. Economically, this suggests that while the majority of households operate within a more modest budget range, there is a subset of wealthier households with much higher spending capacities. The skewness reflects income inequality, where a smaller proportion of the population has the financial flexibility to engage in higher levels of consumption. This can have implications for economic policy, as targeting support toward lower-spending households could be critical in addressing disparities and ensuring equitable access to goods and services, including necessities like food and housing. Furthermore, it suggests that luxury goods and services may be less accessible to the majority, who fall within the lower expenditure bracket.
+
+
+```{r}
+# Histogram and density plot for age
+ggplot(df, aes(x = age)) + 
+  geom_histogram(aes(y = ..density..), bins = 30, fill = 'lightcoral', color = 'black') +
+  geom_density(color = 'red') +
+  ggtitle('Histogram of Age of Reference Person (age)') +
+  xlab('Age') +
+  ylab('Density')
+```
+
+
+The histogram for age is positive and symmetrical, indicating that the distribution of age within the dataset is evenly spread around the mean, with no significant skew to the left or right. This suggests that there is a balanced representation of age groups in the sample, with similar proportions of younger, middle-aged, and older individuals. Economically, this symmetry implies that the data captures a broad and diverse cross-section of the population, making it easier to generalize findings related to consumption patterns, such as the budget share of food, across different age groups. Since age often influences spending behavior—older individuals may have different consumption habits compared to younger ones—this balanced distribution allows for more accurate analysis of how age impacts economic decisions and helps avoid bias that might arise if the sample were skewed towards a particular age group.
+
+
+```{r}
+# Bar plot for town (categorical)
+ggplot(df, aes(x = as.factor(town))) + 
+  geom_bar(fill = 'lightblue', color = 'black') +
+  ggtitle('Distribution of Town Size') +
+  xlab('Town Category') +
+  ylab('Count')
+```
+
+
+The bar plot revealing that most households live in bigger towns (category 4), followed by category 3, suggests a significant urban concentration in the dataset. This pattern indicates that larger towns tend to have higher populations, likely due to the increased availability of amenities, employment opportunities, and infrastructure that attract more residents. The next highest concentration of households in moderately large towns (category 3) reinforces the trend that more populated areas dominate the sample.
+
+Interestingly, the bar plot also shows that nearly the same number of households live in small towns (category 1) and the largest towns (category 5), which presents an intriguing contrast. While smaller towns may have lower population density, the equivalent number of households residing in both categories suggests that there could be certain factors driving residents to either extreme—perhaps lifestyle preferences or specific economic opportunities in very small or very large towns.
+
+Economically, this distribution across town sizes could reflect differing consumption patterns. Households in bigger towns might have higher expenditures due to higher living costs, access to more goods and services, or different lifestyle choices, whereas households in smaller towns may spend differently, possibly focusing more on essential goods. This urban-rural divide could play a role in understanding regional consumption behaviors, especially in studies focusing on the budget share of food or total expenditure.
+
+
+```{r}
+# Bar plot for sex (binary)
+ggplot(df, aes(x = as.factor(sex))) + 
+  geom_bar(fill = 'lightgreen', color = 'black') +
+  ggtitle('Distribution of Sex of Reference Person') +
+  xlab('Sex') +
+  ylab('Count')
+```
+
+
+In this dataset, the most dominant gender of the reference person in a household is identified as 'man,' indicating that men are predominantly portrayed as the heads of households. This pattern reflects traditional gender roles, where men often take on the leadership or decision-making responsibilities within households, especially in economic contexts like budgeting and expenditure management. Such a dominance could be influenced by societal norms, cultural expectations, or the historical structuring of family roles. Economically, this might affect how resources are allocated within households, including the budget share for food (wfood) and other household expenditures. The data representation underscores a gendered dynamic in household leadership, which could have implications for policy-making and economic analysis focused on household behavior.
+
+
+### Five-Number Summary and Boxplots
+
+```{r}
+# Five-number summary for wfood, totexp, age, and size
+summary(df$wfood)
+summary(df$totexp)
+summary(df$age)
+summary(df$size)
+# Boxplot for wfood
+ggplot(df, aes(x = "", y = wfood)) + 
+  geom_boxplot(fill = 'lightblue') +
+  ggtitle('Boxplot of Budget Share of Food (wfood)') +
+  ylab('Percentage of Expenditure on Food')
+```
+
+
+The boxplot of the budget share of food (wfood) reveals that most values are concentrated in the middle range, specifically between 0.25 and 0.50. This suggests that the majority of households allocate a moderate portion of their total expenditure to food, reflecting typical consumption patterns. The relatively narrow interquartile range (IQR) indicates that the central bulk of the data is tightly clustered, signifying consistent spending behavior across households. However, the presence of a few extreme values at the higher end, represented by the peaks or outliers, shows that some households dedicate a significantly larger share of their budget to food. These could represent lower-income households where food takes up a larger proportion of their expenditure or households with larger families or unique consumption preferences. This distribution underscores the economic variability in food spending, although the majority follow a more predictable pattern.
+
+
+```{r}
+# Boxplot for totexp
+ggplot(df, aes(x = "", y = totexp)) + 
+  geom_boxplot(fill = 'lightgreen') +
+  ggtitle('Boxplot of Total Expenditure (totexp)') +
+  ylab('Total Household Expenditure')
+```
+
+
+The boxplot of total expenditure (totexp), similar to its histogram, displays a right-skewed distribution. In the boxplot, this skewness is evident as the median line is closer to the lower quartile, indicating that a large portion of the data is concentrated toward the lower expenditure values. The upper whisker is notably longer, showing a wider spread among higher expenditure values. Additionally, there are several outliers at the higher end, representing households with significantly larger expenditures. This confirms the economic observation that while most households have moderate total expenditures, a few spend disproportionately more, likely due to higher incomes or larger family sizes. The right skew suggests income inequality or a broader range of spending behaviors across households.
+
+
+```{r}
+# Boxplot for age
+ggplot(df, aes(x = "", y = age)) + 
+  geom_boxplot(fill = 'lightcoral') +
+  ggtitle('Boxplot of Age of Reference Person (age)') +
+  ylab('Age')
+```
+
+
+The boxplot for age shows an evenly distributed set of values, with the median line centrally located within the box, indicating that the data is symmetrical. The interquartile range (IQR) is well-balanced, meaning that there is a consistent spread between the lower and upper quartiles. Both whiskers extend roughly the same length, further highlighting the balanced distribution of ages in the dataset. There are no significant outliers, suggesting that the ages of the sampled households are relatively uniform and do not exhibit extreme values. This even distribution suggests a fairly typical demographic spread, where no particular age group dominates the dataset, reflecting a representative range of household ages.
+
+### Correlation Matrix
+
+```{r}
+# Select continuous variables for correlation matrix
+cor_data <- df %>% select(wfood, totexp, age, size)
+# Correlation matrix
+cor_matrix <- cor(cor_data, use = "complete.obs")
+print(cor_matrix)
+# Plot the correlation matrix
+#corrplot(cor_matrix, method = "circle", type = "upper", 
+         #tl.col = "black", tl.srt = 45, 
+         #title = "Correlation Matrix of Continuous Variables")
+```
+
+The correlation matrix reveals several key relationships among the variables. The budget share of food (wfood) is negatively correlated with total household expenditure (totexp) with a moderate strength of -0.51, indicating that as household expenditure increases, the percentage spent on food tends to decrease. wfood is positively correlated with age (0.27), suggesting that older reference persons tend to allocate a higher share of their budget to food. The correlation between wfood and household size (size) is very weak and negative (-0.03), implying little to no relationship. totexp has a moderate positive correlation with size (0.38), meaning larger households tend to have higher total expenditures, and a moderate negative correlation with age (-0.26), suggesting that older reference persons are associated with lower total household expenditures. Finally, age and size are negatively correlated (-0.35), indicating that older households tend to have fewer members.
+
+## d) Possible Violations of Regression Assumptions
+
+The linear regression assumptions that could be violated include:
+
+Linearity: The relationship between the predictors (e.g., total expenditure, household size) and the dependent variable (budget share of food) may not be perfectly linear.
+Homoscedasticity: There could be heteroscedasticity, where the variance of errors increases as total expenditure increases, meaning wealthier households might display more variability in food spending.
+Normality of Residuals: Skewed distributions of variables like wfood and total expenditure could result in residuals that are not normally distributed.
+Multicollinearity: Predictors such as total expenditure and household size may be correlated, violating the assumption that independent variables should not be too highly correlated with one another.
+Independence: Since this is cross-sectional data, each household is assumed to provide an independent observation, but any unobserved factors related to town or region could violate this assumption.
+
+# 3. Fitting the Multiple Regression model
+
+```{r}
+# Fitting the multiple linear regression model
+model_baseline <- lm(wfood ~ totexp + age + size + factor(town) + factor(sex), data = df)
+library(modelsummary)
+library(flextable)
+# Summarizing the results
+summary(model_baseline)
+```
+
+## a) Interpretation and discussions
+
+The results of the multiple linear regression model provide several important insights into the factors influencing the budget share of food (wfood) for Spanish households. The total household expenditure (totexp) has a negative and highly significant coefficient (-1.387e-07, p < 2e-16), indicating that as total expenditure increases, the proportion of the household budget spent on food decreases. This is consistent with Engel's Law, which suggests that wealthier households allocate a smaller share of their income to basic necessities like food. The age of the reference person has a positive and significant coefficient (0.002158, p < 2e-16), meaning that older household heads tend to allocate slightly more of their budget to food expenses. This may reflect lifestyle or consumption pattern changes as people age.
+
+Similarly, household size is positively associated with the budget share of food, as indicated by the significant coefficient (0.02208, p < 2e-16). This suggests that larger households, on average, spend a higher proportion of their total budget on food, possibly due to the higher total food consumption in bigger households. The town size coefficients show a consistent trend: as the size of the town increases, the budget share for food decreases. For example, households in towns of category 5 (large towns) spend significantly less on food relative to smaller towns (e.g., -0.06955, p < 2e-16 for town size 5). Finally, the gender of the reference person also has a significant effect, with female-headed households spending a slightly lower share on food (-0.008149, p = 0.00243).
+
+Overall, the model appears to be economically sensible. However, some small but statistically significant effects (e.g., the very low magnitude of the coefficient on total expenditure) could be explored further for practical relevance. There are no apparent anomalies in the sign of the estimates, though further investigation of specific factors like town size may offer more nuanced insights.
+
+## b) Overall Model Fit and Assumption Violations
+
+The overall fit of the model is reasonably strong, with an R-squared value of 0.3496, indicating that about 35% of the variation in the budget share of food is explained by the predictors in the model. This suggests that while the model captures a significant portion of the variation, there are still other unobserved factors that contribute to households' food expenditure patterns. The F-statistic (1610, p < 2.2e-16) indicates that the model as a whole is highly statistically significant, meaning that the included variables collectively explain a significant amount of variation in food spending.
+
+However, potential violations of regression assumptions could affect the model's accuracy. The negative skew in totexp and the heteroscedasticity observed in the residuals might imply that the assumption of homoscedasticity (constant variance of errors) is violated. Additionally, non-linearity in relationships between some variables and the dependent variable could lead to biased estimates. Moreover, while multicollinearity does not seem to be an issue based on the correlation matrix, the residuals should be checked for normality to confirm that the assumption of normally distributed errors holds. Addressing these potential violations, possibly through transformation or robust standard errors, could improve the reliability of the model.
+
+# 4. Feature Selection
+
+## 4.1. Variance Inflation Factor
+
+To test for multicollinearity in the model, we can use the Variance Inflation Factor (VIF), which measures how much the variance of an estimated regression coefficient increases due to collinearity among the predictor variables. A VIF value above 10 is typically considered an indication of high multicollinearity and suggests that the variable may need to be removed from the model.
+
+```{r}
+library(car)
+# Calculate VIF values
+vif_values <- vif(model_baseline)
+print(vif_values)
+```
+
+The Variance Inflation Factor (VIF) results indicate that none of the variables in the baseline model exhibit significant multicollinearity, as all VIF values are below the common threshold of 10. Specifically, the VIF values for total expenditure (1.25), age (1.21), household size (1.37), the categorical variable for town (1.09), and the categorical variable for sex (1.16) suggest that there is no excessive correlation among the predictors. Given that all values are close to 1, we can conclude that multicollinearity is not a concern in this model.
+
+Therefore, we will retain all variables in the regression model since their VIF values do not warrant the removal of any predictors. In cases where variables exhibit VIF values above 5 or 10, those would typically be candidates for removal. However, in this instance, the absence of high VIF values suggests that each variable provides unique information that contributes to the model's explanatory power.
+
+## 4.2 Estimation of the New Regression Model
+
+```{r}
+# Refitting the model since no variables need to be removed
+model_new <- lm(wfood ~ totexp + age + size + factor(town) + factor(sex), data = df)
+summary(model_new)
+```
+
+## 4.3 Justification for the New Model
+
+By retaining all predictors in the model, we ensure that we are capturing the full complexity of the relationships between the dependent variable (the budget share of food) and the independent variables. Given the absence of multicollinearity, this approach will facilitate a more reliable estimation of the coefficients and better insights into how each predictor influences food expenditure patterns among Spanish households. Therefore, we will move forward with the analysis using the complete model without any alterations to the predictor set based on VIF findings.
+
+# 5. Akaike Information Criterion (AIC)
+
+To determine which subset of predictors to keep in our regression model, we can use model selection criteria such as the Akaike Information Criterion (AIC) or the Bayesian Information Criterion (BIC) (also known as the Schwartz Criterion). Both criteria balance the goodness of fit of the model against the complexity (number of parameters). A lower AIC or BIC value indicates a better model.
+
+```{r}
+# Load necessary library
+#if(!require(MASS)) install.packages("MASS", dependencies=TRUE)
+library(MASS)
+df <-df %>% 
+  na.omit(df)
+# Fit the full model with all predictors
+full_model <- lm(wfood ~ totexp + age + size + factor(town) + factor(sex), data = df)
+# Perform stepwise selection based on AIC
+best_model_aic <- step(full_model, direction = "both", k = log(nrow(df)))
+# Summary of the best model based on AIC
+summary(best_model_aic)
+```
+
+
+Based on the stepwise selection process utilizing the Akaike Information Criterion (AIC), the refined model retains the predictors total expenditure (totexp), age, household size (size), and town (as a categorical variable) while excluding sex. The removal of the factor(sex) variable was justified as it did not significantly contribute to the model's explanatory power, indicated by the AIC score suggesting a better fit without it. The coefficients for the remaining variables are statistically significant (p < 0.001), suggesting that they have a meaningful relationship with the dependent variable, the budget share of food (wfood).
+
+The estimated model reveals that as total expenditure increases, the budget share for food decreases, as indicated by the negative coefficient for totexp. Conversely, both age and household size have positive coefficients, indicating that as either age or size increases, the budget share for food tends to increase as well. The coefficients for factor(town) show how the budget share for food varies significantly across different towns.
+
+In comparison to the previous model, which included the factor(sex), the new model demonstrates a slight improvement in fit, with a marginally lower AIC and similar R-squared values (0.3494 in the refined model compared to 0.3496 in the baseline model). However, the adjustment of R-squared decreased slightly, which reflects the removal of a variable and indicates that while the overall explanatory power of the model remains consistent, the refinement process led to a more parsimonious model. This balance between simplicity and fit is crucial in regression modeling, as it allows for clearer interpretations and avoids overfitting, making the new model potentially more robust for predictive purposes. Overall, the stepwise selection process has yielded a refined model that retains significant predictors while improving interpretability and maintaining good performance metrics.
+
+# 6. The Residual plot
+
+```{r}
+# Generate the fitted values
+fitted_values <- predict(best_model_aic)
+# Calculate the residuals
+residuals <- residuals(best_model_aic)
+# Create the residuals vs. fitted values plot
+#plot(fitted_values, residuals,
+     #main = "Residuals vs Fitted Values",
+     #xlab = "Fitted Values",
+     #ylab = "Residuals",
+     #pch = 19, col = "blue")
+#Add a smooth line to assess homoscedasticity
+library(ggplot2)
+ggplot(data = data.frame(fitted = fitted_values, residuals = residuals), 
+       aes(x = fitted, y = residuals)) +
+  geom_point(color = "blue") +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "red") +
+  geom_smooth(method = "loess", se = FALSE, color = "black") +
+  labs(title = "Residuals vs Fitted Values", 
+       x = "Fitted Values", 
+      y = "Residuals")
+```
+
+
+In the residuals versus fitted values plot, the points were observed to be randomly scattered around the horizontal line at zero, indicating that the model's residuals are distributed without any systematic pattern. This randomness supports the assumption of linearity in the relationship between the independent variables, such as total expenditure, age, and household size, and the dependent variable, budget share of food. However, while the linearity assumption holds, there was a violation of the heteroskedasticity assumption, as the spread of the residuals varied with the fitted values. This suggests that the variance of the residuals is not constant across all levels of the independent variables, indicating potential issues with the model's reliability in predicting the dependent variable. Addressing this heteroskedasticity may be necessary to improve the accuracy and interpretability of the model's findings.
+
+
+# 7. The RESET test
+
+The Ramsey Regression Equation Specification Error Test (RESET) is a diagnostic test used to detect specification errors in regression models. This test checks whether adding powers of the fitted values (or other transformations) significantly improves the model, which could indicate that the original model is mis-specified (e.g., missing important variables or higher-order terms).
+
+
+```{r}
+# Load necessary library
+library(lmtest)
+# Perform the RESET test
+reset_result <- resettest(best_model_aic, power = 2, type = "fitted")
+print(reset_result)
+```
+
+The results of the Ramsey Regression Equation Specification Error Test (RESET) for the model identified through AIC indicate a RESET statistic of 1391.2 with 1 degree of freedom for the numerator and 23962 for the denominator. The p-value is extremely small, less than 2.2e-16, which is significantly below the common significance threshold of 0.05. This strong evidence leads us to reject the null hypothesis that the model is correctly specified. The implication is that the current model may suffer from specification errors, such as omitted variables or an incorrect functional form, suggesting that it might not adequately capture the relationship between the predictors and the dependent variable (budget share of food). Consequently, this finding highlights the need for further investigation into the model's specification. Potential improvements could include incorporating additional relevant variables, exploring non-linear transformations of the existing predictors, or evaluating interaction effects to enhance the model's validity and reliability.
+
+# 8. The Breusch-Pagan test
+
+To test the model for heteroskedasticity, one commonly used method is the Breusch-Pagan test. This test evaluates whether the variance of the residuals from a regression model is dependent on the values of the independent variables.
+
+```{r}
+# Perform the Breusch-Pagan test
+bp_test <- bptest(best_model_aic)
+print(bp_test)
+```
+
+The studentized Breusch-Pagan test results indicate a BP statistic of 1018.1 with 7 degrees of freedom and a p-value less than 2.2e-16. This extremely low p-value suggests that we reject the null hypothesis of homoskedasticity, indicating that heteroskedasticity is present in the model. Consequently, the variance of the residuals is not constant across levels of the independent variables, necessitating the use of robust standard errors or other corrective measures.
+
+## 8.1 Correcting Heteroskedasticity
+
+```{r}
+library(sandwich)
+# Calculate robust standard errors
+robust_se <- coeftest(best_model_aic, vcov = vcovHC(best_model_aic, type = "HC1"))
+print(robust_se)
+```
+
+
+The robust standard errors for the coefficients in the model indicate that the estimates remain statistically significant at the 0.001 level, as evidenced by extremely low p-values for all predictors. The estimated coefficients show similar magnitudes and signs as in the original model, confirming the relationships between the independent variables (total expenditure, age, and size) and the dependent variable (budget share of food). This robustness suggests that the model's conclusions hold even after accounting for heteroskedasticity in the residuals.
+
+# 9. Model Estimation with Interaction Terms
+
+To enhance the predictive power of the model, we can explore the inclusion of interaction terms or higher-order terms based on the previous analyses. Given that the initial models identified significant predictors, we could consider interactions between total expenditure and household size, as these variables may jointly influence the budget share of food.
+
+```{r}
+interaction_model <- lm(wfood ~ totexp * size + age + factor(town), data = df)
+# use stepwise selection (both forward and backward) based on AIC to find the best-fitting model
+best_interaction_model <- step(interaction_model, direction = "both", k = log(nrow(df)))
+#  summarize its performance
+summary(best_interaction_model)
+# the AIC and BIC values
+AIC(best_interaction_model)
+BIC(best_interaction_model)
+```
+
+The performance of the interaction model, which includes the interaction between total expenditure and household size, shows an AIC of -28565.54 and a BIC of -28484.7, indicating an improvement in fit compared to the previous models. This model also has a slightly higher Multiple R-squared value of 0.3524, suggesting that it explains more variability in the budget share of food than the earlier models. The significant interaction term further implies that the relationship between total expenditure and food budgeting varies by household size. Overall, this model captures the complexities of the data more effectively, enhancing predictive accuracy.
+
+# 10. Conclusion
+
+In this analysis of factors influencing the budget share of food among Spanish households, key predictors such as total expenditure, age, household size, and town were identified as significant contributors to food budgeting decisions. The model revealed that as total expenditure increases, the budget share allocated to food decreases, highlighting the economic principle of diminishing marginal utility, where households allocate less of their income to food as they become wealthier. Age was positively correlated with the budget share of food, suggesting that older households may prioritize food spending differently, potentially reflecting changes in dietary preferences or family dynamics over time. The introduction of interaction terms, particularly between total expenditure and household size, indicated that the impact of expenditure on food budgeting is nuanced by household composition, emphasizing the need for tailored economic policies. The presence of heteroskedasticity, addressed by using robust standard errors, ensured that coefficient estimates remained reliable. These findings underscore the importance of considering household dynamics in formulating economic policies related to food security and nutrition. Policymakers in Spain should leverage these insights to design interventions that accommodate varying household characteristics, thus enhancing resource allocation and marketing strategies in the food sector. Future research could expand on these interactions or explore non-linear relationships to further elucidate the complexities of food budgeting behaviors in diverse Spanish households.
