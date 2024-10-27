@@ -1,0 +1,147 @@
+---
+title: 'Case Study: Claims Assessment for Fraud, Waste, and Abuse (FWA) Using Mathematical
+  Models'
+author: "JUDETADEUS MASIKA"
+date: "2024-09-06"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE,
+                      warning = FALSE)
+```
+
+
+```{r}
+# load the necessary libraries 
+library(tidyverse)
+library(tidyquant)
+library(dplyr)
+```
+
+
+```{r}
+#set the working directory
+setwd("C:/Users/Baha/Downloads")
+# load the claims data into the program
+claims <-read.csv("Claims_Data.csv")
+# display the first 6 observations of the data
+head(claims)
+```
+
+# Data Exploration
+
+```{r}
+# Check the structure of the data
+str(claims)
+# summary statistics of numerical variables to understand key trends
+summary(claims$Claim.Amount)
+summary(claims$Previous.Claims)
+summary(claims$Member.Age)
+```
+
+```{r}
+# check for the missing values
+colSums(is.na(claims))  ## the dataset has got no missing values
+```
+
+```{r}
+# check for the outliers
+
+# Visualize potential outliers in Claim Amount and Member Age
+boxplot(claims$Claim.Amount, main = "Boxplot for Claim Amount")
+boxplot(claims$Member.Age, main = "Boxplot for Member Age") # the variable age has no outliers present
+
+# Identify statistical outliers
+quantiles <- quantile(claims$Claim.Amount, probs = c(0.05, 0.95))
+IQR <- IQR(claims$Claim.Amount)
+outliers <- claims$Claim.Amount[claims$Claim.Amount < (quantiles[1] - 1.5 * IQR) |
+                                     claims$Claim.Amount > (quantiles[2] + 1.5 * IQR)]
+outliers   # the claim amount variable has got outliers 
+```
+
+```{r}
+## understand the distribution of categorical variables
+table(claims$Location)
+```
+
+# Data Preprocessing
+
+```{r}
+# handling outliers
+# Capping outliers for Claim Amount
+claims$Claim.Amount <- ifelse(claims$Claim.Amount > (quantiles[2] + 1.5 * IQR),
+                                   (quantiles[2] + 1.5 * IQR), claims$Claim.Amount)
+
+claims$Claim.Amount <- ifelse(claims$Claim.Amount < (quantiles[1] - 1.5 * IQR),
+                                   (quantiles[1] - 1.5 * IQR), claims$Claim.Amount)
+```
+
+```{r}
+# convert the categorical variables into factors
+claims$Location <-as.factor(claims$Location)
+claims$Fraudulent <-as.factor(claims$Fraudulent)
+```
+
+```{r}
+# Scaling Claim Amount and Member Age
+#claims$Claim.Amount <- scale(claims$Claim.Amount)
+#claims$Member.Age <- scale(claims$Member.Age)
+```
+
+
+# Fraud, Waste, and Abuse (FWA) Detection Model
+
+
+```{r}
+# Split the data into training and test sets
+set.seed(222)
+train_indices <- sample(seq_len(nrow(claims)), size = 0.8*nrow(claims))
+train_data <- claims[train_indices, ]
+test_data <- claims[-train_indices, ]
+# Build logistic regression model
+logistic_model <- glm(Fraudulent ~ Claim.Amount + Previous.Claims + Member.Age + Location, 
+             data = train_data, family = "binomial")
+# View the model summary
+summary(logistic_model)
+```
+
+# Risk Scoring
+
+
+```{r}
+# Predict probabilities for the test dataset
+risk_scores <- predict(logistic_model, newdata = test_data, type = "response")
+# Add risk scores to the dataset
+claims$Risk.Score <- risk_scores
+# View claims with highest risk scores
+risk_claims <- claims[order(-claims$Risk.Score), ]
+head(risk_claims)
+new_claim_data <-claims %>% 
+  select(Claim.ID, Claim.Amount, Previous.Claims, Fraudulent,Risk.Score)
+head(new_claim_data,15)
+```
+
+# Model Validation
+
+## Accuracy metrics
+
+```{r}
+# Predict probabilities on test data
+pred_prob <- predict(logistic_model, newdata = test_data, type = "response")
+# Convert probabilities to binary predictions (threshold = 0.5)
+pred <- as.factor(ifelse(pred_prob > 0.5, 1, 0))
+# Confusion matrix
+library(party)
+library(caret)
+conf_matrix <- confusionMatrix(pred, test_data$Fraudulent);conf_matrix
+```
+
+
+```{r}
+# Load necessary library
+library(pROC)
+# ROC curve and AUC
+roc_curve <- roc(test_data$Fraudulent, pred_prob)
+auc(roc_curve)
+```

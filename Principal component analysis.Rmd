@@ -1,0 +1,222 @@
+---
+title: "PRINCIPAL COMPONENT ANALYSIS"
+author: "JUDETADEUS MASIKA"
+date: "2024-08-03"
+output:
+   pdf_document:
+     latex_engine: xelatex
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+                      message = FALSE,
+                      warning = FALSE)
+```
+
+
+Principal Component Analysis in R, PCA is used in exploratory data analysis and for making decisions in predictive models.
+
+PCA is commonly used for dimensionality reduction by using each data point onto only the first few principal components (most cases first and second dimensions) to obtain lower-dimensional data while keeping as much of the data’s variation as possible.
+
+The first principal component can equivalently be defined as a direction that maximizes the variance of the projected data.
+
+The principal components are often analyzed by eigendecomposition of the data covariance matrix or singular value decomposition (SVD) of the data matrix.
+
+
+```{r}
+## loading the required packages
+library(tidyverse)
+library(psych)
+library(devtools)
+library(ggbiplot)
+library(dslabs)
+library(gt)
+```
+
+
+
+Reducing the number of variables from a data set naturally leads to inaccuracy, but the trick in dimensionality reduction is to allow us to make correct decisions based on high accuracy.
+
+Always smaller data sets are easier to explore, visualize, analyze, and faster for machine learning algorithms.
+
+We’ll utilize the iris dataset in R to analyze and interpret data in this session.
+
+## Getting the data
+
+```{r}
+## getting the dataset
+data("iris")
+iris %>% 
+  head(n=10) %>% 
+  gt()
+```
+
+```{r}
+## structure of the data
+str(iris)
+##summary statistics of the data
+summary(iris)
+```
+
+## Partition data
+
+```{r}
+## partition the data into training and testing sets
+ind <-sample(2, nrow(iris),
+             replace = T,
+             prob = c(0.8,0.2))
+train_data <-iris[ind==1,]
+test_data <-iris[ind==2,]
+dplyr::glimpse(train_data)
+dplyr::glimpse(test_data)
+```
+
+## Scatter Plot & Correlations
+
+We’ll start by looking at the correlation between the independent variables. For correlation data analysis, we’ll remove the factor variable from the dataset.
+
+```{r}
+pairs.panels(train_data[,-5],
+             gap=0,
+             bg=c("red","yellow","blue")[train_data$Species],
+             pch = 21)
+```
+
+Lower triangles provide scatter plots and upper triangles provide correlation values.
+
+Petal length and petal width are highly correlated. Same way sepal length and petal length, Sepeal length, and petal width are also highly correlated. This leads to multicollinearity issues. So if we predict the model based on this dataset may be erroneous. One way of handling these kinds of issues is based on PCA.
+
+Only independent variables are used in Principal Component Analysis. As a result, the fifth variable was eliminated from the dataset.
+
+```{r}
+pc <-prcomp(train_data[,-5],
+            center = T,
+            scale. = T)
+attributes(pc)
+```
+
+
+```{r}
+pc$center
+```
+
+Scale function is used for normalization
+
+```{r}
+pc$scale
+```
+
+print the results stored in the object pc, while printing pc you will get standard deviations and loadings.
+
+```{r}
+print(pc)
+```
+
+For example, PC1 increases when Sepal Length, Petal Length, and Petal Width are increased and it is positively correlated whereas PC1 increases Sepal Width decrease because these values are negatively correlated.
+
+
+```{r}
+## the summary of the pc object
+summary(pc)
+```
+
+The first principal components explain the variability around 73% and it captures the majority of the variability. In this case, the first two components capture the majority of the variability.
+
+##Orthogonality of PCs
+Let’s create the scatterplot based on PC and see the multicollinearity issue is addressed or not?.
+
+```{r}
+pairs.panels(pc$x,
+             gap=0,
+             bg=c("red","yellow","blue")[train_data$Species],
+             pch = 21)
+```
+Now the correlation coefficients are zero, so we get rid of multicollinearity issues.
+
+## Bi-Plot
+
+For making bi plot need devtools package.(loaded in the first chunk)
+
+```{r}
+#library(devtools)
+#install_github("vqv/ggbiplot")
+g <-ggbiplot(pc,
+             obs.scale = 1,
+             var.scale = 1,
+             groups = train_data$Species,
+             ellipse = T,
+             circle = T,
+             ellipse.prob = 0.68)
+g <- g + scale_color_discrete(name='')
+g <- g+ theme(legend.direction = 'horizontal',
+              legend.position = 'top')
+print(g)
+```
+
+
+PC1 explains about 72.4% and PC2 explained about 23.8% of the variability. Arrows are closer to each other indicates a high correlation.
+
+For example correlation between Sepal Width vs other variables is weakly correlated.
+
+Another way interpreting the plot is PC1 is positively correlated with the variables Petal Length, Petal Width, and Sepal Length, and PC1 is negatively correlated with Sepal Width. PC2 is highly negatively correlated with Sepal Width.
+
+Bi plot is an important tool in PCA to understand what is going on in the dataset.
+
+
+## Prediction with Principal Components
+
+```{r}
+trg <-predict(pc, train_data)
+## add the species column information into 'trg'
+trg <-data.frame(trg, train_data[5])
+tst <-predict(pc, test_data)
+tst <-data.frame(tst, test_data[5])
+```
+
+
+## Multinomial Logistic regression with First Two PCs
+
+Because our dependent variable has 3 levels, so we will make use of multinomial logistic regression.
+
+```{r}
+library(nnet)
+trg$Species <-relevel(trg$Species, ref = "setosa")
+mymodel <-multinom(Species ~ PC1 + PC2, data = trg)
+library(modelsummary)
+modelsummary(mymodel, stars = c("*" = .1, "**" = .05, "***" = .01))
+summary(mymodel)
+```
+
+##Confusion Matrix & Misclassification Error – training
+
+```{r}
+p <-predict(mymodel, trg)
+tab <-table(p, trg$Species)
+```
+
+Let’s see the correct classification and miss classifications in the training dataset.
+
+```{r}
+print(tab)
+
+## misclassification error
+1-sum(diag(tab))/sum(tab)
+```
+
+The misclassification error is 0.08403361
+
+Confusion Matrix & Misclassification Error – testing
+
+```{r}
+p1 <-predict(mymodel, tst)
+tab1 <-table(p1, tst$Species)
+print(tab1)
+```
+
+
+```{r}
+##Misclassification error
+1-sum(diag(tab1))/sum(tab1)
+```
+
+Misclassification for the testing data set is 6.4%, indicating 93.6% model accuracy.
