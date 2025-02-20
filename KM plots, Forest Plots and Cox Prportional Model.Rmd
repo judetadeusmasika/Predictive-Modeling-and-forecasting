@@ -1,0 +1,1896 @@
+---
+title: "SEER_Uterus_Cases analysis"
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+                      message = FALSE,
+                      warning = FALSE)
+```
+
+# Importing data and previewing the first 5 observations
+
+```{r}
+library(haven)
+library(readxl)
+library(tidyverse)
+library(ggplot2)
+library(gt)
+setwd("C:/Users/lenovo/Downloads")
+seer <-read_excel("uterus_SEER_cases.xlsx")
+head(seer)
+```
+
+# 1. 8980/3: Carcinosarcoma, NOS cancer subtype
+
+# Data filtering 
+
+```{r}
+# Data filtering
+library(dplyr)
+seerCA <- seer %>% 
+  filter(`Histologic Type ICD-O-3` == "8980")
+head(seerCA)
+nrow(seerCA)
+```
+
+# Cohort characteristics 
+
+## Age
+
+```{r}
+# Convert age ranges into a factor with specified levels
+seerCA_clean <- seerCA %>%
+  mutate(AgeGroup = factor(`Age recode with <1 year olds`, 
+                           levels = c("Under 1 year", "1-4 years", "5-9 years", "10-14 years", "15-19 years",
+                                      "20-24 years", "25-29 years", "30-34 years", "35-39 years", "40-44 years",
+                                      "45-49 years", "50-54 years", "55-59 years", "60-64 years", "65-69 years",
+                                      "70-74 years", "75-79 years", "80-84 years", "85+ years")))
+# Age breakdown
+table(seerCA_clean$`Age recode with <1 year olds`)
+# Define numeric midpoints for each age group
+age_midpoints <- c(
+  "Under 1 year" = 0.5, "1-4 years" = 2.5, "5-9 years" = 7, "10-14 years" = 12, "15-19 years" = 17,
+  "20-24 years" = 22, "25-29 years" = 27, "30-34 years" = 32, "35-39 years" = 37, "40-44 years" = 42,
+  "45-49 years" = 47, "50-54 years" = 52, "55-59 years" = 57, "60-64 years" = 62, "65-69 years" = 67,
+  "70-74 years" = 72, "75-79 years" = 77, "80-84 years" = 82, "85+ years" = 87
+)
+# Convert age group to numeric midpoints
+seerCA_clean <- seerCA_clean %>%
+  mutate(AgeNumeric = age_midpoints[AgeGroup])
+# Calculate mean and standard deviation
+mean_age <- mean(seerCA_clean$AgeNumeric, na.rm = TRUE)
+sd_age <- sd(seerCA_clean$AgeNumeric, na.rm = TRUE)
+# Print results
+cat("Mean Age:", mean_age, "\n")
+cat("Standard Deviation of Age:", sd_age, "\n")
+
+library(tidyquant)
+ggplot(seerCA_clean, aes(x = AgeGroup)) +
+  geom_bar(fill = "skyblue", color = "black") +
+  theme_tq() +
+  labs(title = "Age Distribution in SEER Cohort",
+       x = "Age Group",
+       y = "Frequency") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+## Race/Ethnicity
+
+```{r}
+# Decode the race variable and replace unknown values with NA
+seerCA_clean <- seerCA_clean %>%
+  mutate(Race = case_when(
+    `Race recode (W, B, AI, API)` == 0 ~ "White",
+    `Race recode (W, B, AI, API)` == 1 ~ "Black",
+    `Race recode (W, B, AI, API)` == 2 ~ "American Indian/Alaska Native",
+    `Race recode (W, B, AI, API)` == 3 ~ "Asian or Pacific Islander",
+    TRUE ~ NA_character_  # Treat unknown values as missing (NA)
+  ))
+
+# Remove missing values before plotting
+seerCA_clean <- seerCA_clean %>% filter(!is.na(Race))
+
+# Plot race distribution
+ggplot(seerCA_clean, aes(x = Race)) +
+  geom_bar(fill = "steelblue", color = "black") +
+  theme_minimal() +
+  labs(title = "Race Distribution in SEER Cohort",
+       x = "Race",
+       y = "Frequency") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+## Grade
+
+```{r}
+# Clean and group data, treating "4/unknown" as NA
+seerCA_clean <- seerCA_clean %>%
+  mutate(Grade = case_when(
+    `Grade Recode (thru 2017)` == "Well differentiated; Grade I" ~ "Grade I",
+    `Grade Recode (thru 2017)` == "Moderately differentiated; Grade II" ~ "Grade II",
+    `Grade Recode (thru 2017)` == "Poorly differentiated; Grade III" ~ "Grade III",
+    `Grade Recode (thru 2017)` == "Undifferentiated; anaplastic; Grade IV" ~ "Grade IV",
+    `Grade Recode (thru 2017)` == "4" ~ NA_character_,  # Treat "4/unknown" as missing
+    TRUE ~ NA_character_  # Handle any other unknown values as missing
+  ))
+
+# Remove missing values before plotting
+seerCA_clean <- seerCA_clean %>% filter(!is.na(Grade))
+
+# Plot grade distribution
+ggplot(seerCA_clean, aes(x = Grade)) +
+  geom_bar(fill = "cornflowerblue", color = "black") +
+  theme_minimal() +
+  labs(title = "Grade Distribution (thru 2017)",
+       x = "Grade",
+       y = "Frequency") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+
+## Stage
+
+```{r}
+# Inspect unique values
+unique(seerCA_clean$`Combined Summary Stage (2004+)`)
+
+# Clean the variable by treating "4/unstaged" as missing
+seerCA_clean <- seerCA_clean %>%
+  mutate(Stage = ifelse(`Combined Summary Stage (2004+)` == "4/unstaged", NA, `Combined Summary Stage (2004+)`)) %>%
+  filter(!is.na(Stage)) %>%  # Remove missing values
+  mutate(Stage = factor(Stage))  # Convert to factor
+
+# Plot the cleaned stage variable
+ggplot(seerCA_clean, aes(x = Stage)) +
+  geom_bar(fill = "skyblue", color = "black") +
+  theme_minimal() +
+  labs(title = "Frequency of Combined Summary Stages (2004+)",
+       x = "Stage",
+       y = "Frequency") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+
+## Time from diagnosis to treatment
+
+```{r}
+# Check the structure of the variable
+str(seerCA_clean$`Time from diagnosis to treatment in days recode`)
+# Clean the variable: Convert numeric values, treat "Unable to calculate" as missing
+seerCA_clean <- seerCA_clean %>%
+  mutate(TimeToTreatment = as.numeric(ifelse(`Time from diagnosis to treatment in days recode` == "Unable to calculate", NA, 
+                                             gsub("[^0-9.]", "",`Time from diagnosis to treatment in days recode`))))
+
+# Inspect the cleaned variable
+summary(seerCA_clean$TimeToTreatment)
+# Handle missing values
+sum(is.na(seerCA_clean$TimeToTreatment))
+# Remove missing data
+seerCA_clean <- seerCA_clean %>%
+  filter(!is.na(TimeToTreatment))
+
+# plot a histogram to show the distribution of time in days to treatment after diagnosis
+ggplot(seerCA_clean, aes(x = TimeToTreatment)) +
+  geom_histogram(binwidth = 10, fill = "steelblue", color = "black") +
+  theme_minimal() +
+  labs(title = "Time from Diagnosis to Treatment",
+       x = "Days",
+       y = "Frequency") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+
+## Boxplot of time from diagnosis to treatment
+
+```{r}
+# Boxplot to identify the spread and outliers in the variable
+ggplot(seerCA_clean, aes(y = TimeToTreatment)) +
+  geom_boxplot(fill = "lightcoral", color = "black") +
+  theme_minimal() +
+  labs(title = "Boxplot of Time from Diagnosis to Treatment",
+       y = "Days")
+```
+```{r}
+# inspect the cleaned data to make sure it has no more missing values in the key variables to use
+str(seerCA_clean)
+sum(is.na(seerCA_clean))
+```
+
+# 8980/3: Carcinosarcoma, NOS cancer subtype
+
+# Kaplan Meier Plots associated with 'Alive or dead of other cause' as the event.
+
+## KM plot for sex/Gender
+
+```{r}
+# Kaplan Meir survival analysis
+# Load survival analysis libraries
+library(survival)
+library(survminer)
+attach(seerCA_clean)
+# Rename columns for simplicity
+seerCA_clean <- seerCA_clean %>%
+  rename(
+    SurvivalMonths = `Survival months`,
+    CauseSpecificDeath = `SEER cause-specific death classification`,
+    SummaryStage = `Combined Summary Stage (2004+)`,
+    RaceEthnicity = `Race recode (W, B, AI, API)`,
+    GradeRecode = `Grade Recode (thru 2017)`,
+    Chemotherapy = `Chemotherapy recode (yes, no/unk)`
+  )
+
+# KM plot of Sex 
+# Create survival object
+surv_object <- Surv(seerCA_clean$SurvivalMonths, seerCA_clean$CauseSpecificDeath == "Alive or dead of other cause")
+# Kaplan-Meier plot
+fit <- survfit(surv_object ~ Sex, data = seerCA_clean)
+# Plot Kaplan-Meier curves
+ggsurvplot(fit, data = seerCA_clean, pval = TRUE, conf.int = TRUE, risk.table = TRUE,
+           title = "Kaplan-Meier Survival Curve by Sex", 
+           xlab = "Time (Months)", ylab = "Survival Probability",
+           legend.title = "Histotype",
+           legend.labs = c("Carcinosarcoma, NOS")
+           )
+```
+
+
+```{r}
+# Kaplan-Meier Survival Curve
+# To plot survival curves for histotypes 8980/3 Carcinosarcoma
+# Create the survival object
+#surv_object <- Surv(time = seerCA_clean$SurvivalMonths, 
+                    #event = seerCA_clean$CauseSpecificDeath == "Alive or dead of other cause")
+# Fit survival curves by histologic type
+#km_fit <- survfit(surv_object ~ seerCA_clean$`ICD-O-3 Hist/behav, malignant`)
+# Plot the Kaplan-Meier curve
+#ggsurvplot(km_fit,
+          # data = seerCA_clean,
+           #conf.int = TRUE,
+           #pval = TRUE,
+           #risk.table = TRUE,
+           #title = "Kaplan-Meier Survival Curve by Histotype",
+           #xlab = "Time (Months)",
+           #ylab = "Survival Probability",
+           #legend.title = "Histotype",
+           #legend.labs = c("Carcinosarcoma, NOS")
+           #)
+```
+
+
+## KM plot for Stage
+
+```{r}
+# KM plot by Stage
+km_fit_stage <- survfit(Surv(seerCA_clean$SurvivalMonths, seerCA_clean$CauseSpecificDeath == "Alive or dead of other cause") ~ 
+                        seerCA_clean$SummaryStage)
+ggsurvplot(km_fit_stage,
+           data = seerCA_clean,
+           conf.int = TRUE,
+           pval = TRUE,
+           risk.table = TRUE,
+           title = "Kaplan-Meier Survival Curve by Stage",
+           xlab = "Time (Months)",
+           ylab = "Survival Probability",
+           legend.title = "Stage")
+```
+
+
+## KM plot for Race/Ethnicity
+
+```{r}
+# Kaplan Meir plot for Race/Ethnicity
+# Create survival object
+surv_object_race <- Surv(seerCA_clean$SurvivalMonths, seerCA_clean$CauseSpecificDeath == "Alive or dead of other cause")
+# Kaplan-Meier fit by Race
+fit_race <- survfit(surv_object_race ~ seerCA_clean$Race)
+# Plot Kaplan-Meier curves
+ggsurvplot(
+  fit_race, 
+  data = seerCA_clean, 
+  pval = TRUE, 
+  conf.int = TRUE, 
+  risk.table = TRUE,
+  title = "Kaplan-Meier Survival Curve by Race",
+  xlab = "Time (Months)", 
+  ylab = "Survival Probability",
+  legend.title = "Race"
+)
+```
+
+
+## KM plot for Grade
+
+```{r}
+# Kaplan Meir plot for Grade
+# Create survival object
+surv_object_grade <- Surv(seerCA_clean$SurvivalMonths, seerCA_clean$CauseSpecificDeath == "Alive or dead of other cause")
+# Kaplan-Meier fit by Grade
+fit_grade <- survfit(surv_object_grade ~ seerCA_clean$GradeRecode)
+# Plot Kaplan-Meier curves
+ggsurvplot(
+  fit_grade, 
+  data = seerCA_clean, 
+  pval = TRUE, 
+  conf.int = TRUE, 
+  risk.table = TRUE,
+  title = "Kaplan-Meier Survival Curve by Grade",
+  xlab = "Time (Months)", 
+  ylab = "Survival Probability",
+  legend.title = "Grade"
+)
+```
+
+
+## KM plot for Chemotherapy
+
+```{r}
+# Kaplan Meir plot for Chemotherapy
+# Create survival object
+surv_object_chemo <- Surv(seerCA_clean$SurvivalMonths, seerCA_clean$CauseSpecificDeath == "Alive or dead of other cause")
+# Kaplan-Meier fit by Chemotherapy
+fit_chemo <- survfit(surv_object_chemo ~ seerCA_clean$Chemotherapy)
+# Plot Kaplan-Meier curves
+ggsurvplot(
+  fit_chemo, 
+  data = seerCA_clean, 
+  pval = TRUE, 
+  conf.int = TRUE, 
+  risk.table = TRUE,
+  title = "Kaplan-Meier Survival Curve by Chemotherapy",
+  xlab = "Time (Months)", 
+  ylab = "Survival Probability",
+  legend.title = "Chemotherapy"
+)
+```
+
+
+
+# Kaplan Meier Plots associated with 'Dead (attributable to this cancer dx)' as the event.
+
+## KM plot for Sex
+
+```{r}
+# KM plot of Sex 
+# Create survival object
+surv_object <- Surv(seerCA_clean$SurvivalMonths, seerCA_clean$CauseSpecificDeath == "Dead (attributable to this cancer dx)")
+# Kaplan-Meier plot
+fit <- survfit(surv_object ~ Sex, data = seerCA_clean)
+# Plot Kaplan-Meier curves
+ggsurvplot(fit, data = seerCA_clean, pval = TRUE, conf.int = TRUE, risk.table = TRUE,
+           title = "Kaplan-Meier Survival Curve by Sex", 
+           xlab = "Time (Months)", ylab = "Survival Probability",
+           legend.title = "Histotype",
+           legend.labs = c("Carcinosarcoma, NOS")
+           )
+```
+
+
+## KM plot for Stage
+
+```{r}
+# KM plot by Stage
+km_fit_stage <- survfit(Surv(seerCA_clean$SurvivalMonths, seerCA_clean$CauseSpecificDeath == "Dead (attributable to this cancer dx)") ~ 
+                        seerCA_clean$SummaryStage)
+ggsurvplot(km_fit_stage,
+           data = seerCA_clean,
+           conf.int = TRUE,
+           pval = TRUE,
+           risk.table = TRUE,
+           title = "Kaplan-Meier Survival Curve by Stage",
+           xlab = "Time (Months)",
+           ylab = "Survival Probability",
+           legend.title = "Stage")
+```
+
+
+## KM plot for Race/Ethnicity
+
+```{r}
+# Kaplan Meir plot for Race/Ethnicity
+# Create survival object
+surv_object_race <- Surv(seerCA_clean$SurvivalMonths, seerCA_clean$CauseSpecificDeath == "Dead (attributable to this cancer dx)")
+# Kaplan-Meier fit by Race
+fit_race <- survfit(surv_object_race ~ seerCA_clean$Race)
+# Plot Kaplan-Meier curves
+ggsurvplot(
+  fit_race, 
+  data = seerCA_clean, 
+  pval = TRUE, 
+  conf.int = TRUE, 
+  risk.table = TRUE,
+  title = "Kaplan-Meier Survival Curve by Race",
+  xlab = "Time (Months)", 
+  ylab = "Survival Probability",
+  legend.title = "Race"
+)
+```
+
+
+## KM plot for Grade
+
+
+```{r}
+# Kaplan Meir plot for Grade
+# Create survival object
+surv_object_grade <- Surv(seerCA_clean$SurvivalMonths, seerCA_clean$CauseSpecificDeath == "Dead (attributable to this cancer dx)")
+# Kaplan-Meier fit by Grade
+fit_grade <- survfit(surv_object_grade ~ seerCA_clean$GradeRecode)
+# Plot Kaplan-Meier curves
+ggsurvplot(
+  fit_grade, 
+  data = seerCA_clean, 
+  pval = TRUE, 
+  conf.int = TRUE, 
+  risk.table = TRUE,
+  title = "Kaplan-Meier Survival Curve by Grade",
+  xlab = "Time (Months)", 
+  ylab = "Survival Probability",
+  legend.title = "Grade"
+)
+```
+
+
+## KM plot for Chemotherapy
+
+```{r}
+# Kaplan Meir plot for Chemotherapy
+# Create survival object
+surv_object_chemo <- Surv(seerCA_clean$SurvivalMonths, seerCA_clean$CauseSpecificDeath == "Dead (attributable to this cancer dx)")
+# Kaplan-Meier fit by Chemotherapy
+fit_chemo <- survfit(surv_object_chemo ~ seerCA_clean$Chemotherapy)
+# Plot Kaplan-Meier curves
+ggsurvplot(
+  fit_chemo, 
+  data = seerCA_clean, 
+  pval = TRUE, 
+  conf.int = TRUE, 
+  risk.table = TRUE,
+  title = "Kaplan-Meier Survival Curve by Chemotherapy",
+  xlab = "Time (Months)", 
+  ylab = "Survival Probability",
+  legend.title = "Chemotherapy"
+)
+```
+
+
+# 2. 8380/3 Endometroid Carcinoma cancer subtype
+
+
+```{r}
+# Data filtering
+library(dplyr)
+seerEND <- seer %>% 
+  filter(`Histologic Type ICD-O-3` == "8380")
+head(seerEND)
+nrow(seerEND)
+```
+
+
+
+```{r}
+# Convert age ranges into a factor with specified levels
+seerEND_clean <- seerEND %>%
+  mutate(AgeGroup = factor(`Age recode with <1 year olds`, 
+                           levels = c("Under 1 year", "1-4 years", "5-9 years", "10-14 years", "15-19 years",
+                                      "20-24 years", "25-29 years", "30-34 years", "35-39 years", "40-44 years",
+                                      "45-49 years", "50-54 years", "55-59 years", "60-64 years", "65-69 years",
+                                      "70-74 years", "75-79 years", "80-84 years", "85+ years")))
+# Age breakdown
+table(seerEND_clean$`Age recode with <1 year olds`)
+# Define numeric midpoints for each age group
+age_midpoints <- c(
+  "Under 1 year" = 0.5, "1-4 years" = 2.5, "5-9 years" = 7, "10-14 years" = 12, "15-19 years" = 17,
+  "20-24 years" = 22, "25-29 years" = 27, "30-34 years" = 32, "35-39 years" = 37, "40-44 years" = 42,
+  "45-49 years" = 47, "50-54 years" = 52, "55-59 years" = 57, "60-64 years" = 62, "65-69 years" = 67,
+  "70-74 years" = 72, "75-79 years" = 77, "80-84 years" = 82, "85+ years" = 87
+)
+# Convert age group to numeric midpoints
+seerEND_clean <- seerEND_clean %>%
+  mutate(AgeNumeric = age_midpoints[AgeGroup])
+# Calculate mean and standard deviation
+mean_age <- mean(seerEND_clean$AgeNumeric, na.rm = TRUE)
+sd_age <- sd(seerEND_clean$AgeNumeric, na.rm = TRUE)
+# Print results
+cat("Mean Age:", mean_age, "\n")
+cat("Standard Deviation of Age:", sd_age, "\n")
+library(tidyquant)
+ggplot(seerEND_clean, aes(x = AgeGroup)) +
+  geom_bar(fill = "skyblue", color = "black") +
+  theme_tq() +
+  labs(title = "Age Distribution in SEER Cohort",
+       x = "Age Group",
+       y = "Frequency") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+
+
+```{r}
+# Decode the race variable and replace unknown values with NA
+seerEND_clean <- seerEND_clean %>%
+  mutate(Race = case_when(
+    `Race recode (W, B, AI, API)` == 0 ~ "White",
+    `Race recode (W, B, AI, API)` == 1 ~ "Black",
+    `Race recode (W, B, AI, API)` == 2 ~ "American Indian/Alaska Native",
+    `Race recode (W, B, AI, API)` == 3 ~ "Asian or Pacific Islander",
+    TRUE ~ NA_character_  # Treat unknown values as missing (NA)
+  ))
+
+# Remove missing values before plotting
+seerEND_clean <- seerEND_clean %>% filter(!is.na(Race))
+
+# Plot race distribution
+ggplot(seerEND_clean, aes(x = Race)) +
+  geom_bar(fill = "steelblue", color = "black") +
+  theme_minimal() +
+  labs(title = "Race Distribution in SEER Cohort",
+       x = "Race",
+       y = "Frequency") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+
+```{r}
+# Clean and group data, treating "4/unknown" as NA
+seerEND_clean <- seerEND_clean %>%
+  mutate(Grade = case_when(
+    `Grade Recode (thru 2017)` == "Well differentiated; Grade I" ~ "Grade I",
+    `Grade Recode (thru 2017)` == "Moderately differentiated; Grade II" ~ "Grade II",
+    `Grade Recode (thru 2017)` == "Poorly differentiated; Grade III" ~ "Grade III",
+    `Grade Recode (thru 2017)` == "Undifferentiated; anaplastic; Grade IV" ~ "Grade IV",
+    `Grade Recode (thru 2017)` == "4" ~ NA_character_,  # Treat "4/unknown" as missing
+    TRUE ~ NA_character_  # Handle any other unknown values as missing
+  ))
+
+# Remove missing values before plotting
+seerEND_clean <- seerEND_clean %>% filter(!is.na(Grade))
+
+# Plot grade distribution
+ggplot(seerEND_clean, aes(x = Grade)) +
+  geom_bar(fill = "cornflowerblue", color = "black") +
+  theme_minimal() +
+  labs(title = "Grade Distribution (thru 2017)",
+       x = "Grade",
+       y = "Frequency") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+
+
+```{r}
+# Inspect unique values
+unique(seerEND_clean$`Combined Summary Stage (2004+)`)
+
+# Clean the variable by treating "4/unstaged" as missing
+seerEND_clean <- seerEND_clean %>%
+  mutate(Stage = ifelse(`Combined Summary Stage (2004+)` == "4/unstaged", NA, `Combined Summary Stage (2004+)`)) %>%
+  filter(!is.na(Stage)) %>%  # Remove missing values
+  mutate(Stage = factor(Stage))  # Convert to factor
+
+# Plot the cleaned stage variable
+ggplot(seerEND_clean, aes(x = Stage)) +
+  geom_bar(fill = "skyblue", color = "black") +
+  theme_minimal() +
+  labs(title = "Frequency of Combined Summary Stages (2004+)",
+       x = "Stage",
+       y = "Frequency") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+
+
+```{r}
+# Check the structure of the variable
+str(seerEND_clean$`Time from diagnosis to treatment in days recode`)
+# Clean the variable: Convert numeric values, treat "Unable to calculate" as missing
+seerEND_clean <- seerEND_clean %>%
+  mutate(TimeToTreatment = as.numeric(ifelse(`Time from diagnosis to treatment in days recode` == "Unable to calculate", NA, 
+                                             gsub("[^0-9.]", "",`Time from diagnosis to treatment in days recode`))))
+
+# Inspect the cleaned variable
+summary(seerEND_clean$TimeToTreatment)
+# Handle missing values
+sum(is.na(seerEND_clean$TimeToTreatment))
+# Remove missing data
+seerEND_clean <- seerEND_clean %>%
+  filter(!is.na(TimeToTreatment))
+
+# plot a histogram to show the distribution of time in days to treatment after diagnosis
+ggplot(seerEND_clean, aes(x = TimeToTreatment)) +
+  geom_histogram(binwidth = 10, fill = "steelblue", color = "black") +
+  theme_minimal() +
+  labs(title = "Time from Diagnosis to Treatment",
+       x = "Days",
+       y = "Frequency") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+
+# Kaplan Meier Plots associated with 'Dead (attributable to this cancer dx)' as the event.
+
+```{r}
+# Rename columns for simplicity
+seerEND_clean <- seerEND_clean %>%
+  rename(
+    SurvivalMonths = `Survival months`,
+    CauseSpecificDeath = `SEER cause-specific death classification`,
+    SummaryStage = `Combined Summary Stage (2004+)`,
+    RaceEthnicity = `Race recode (W, B, AI, API)`,
+    GradeRecode = `Grade Recode (thru 2017)`,
+    Chemotherapy = `Chemotherapy recode (yes, no/unk)`
+  )
+```
+
+
+
+## KM plot for Sex
+
+```{r}
+# KM plot of Sex 
+# Create survival object
+surv_object <- Surv(seerEND_clean$SurvivalMonths, seerEND_clean$CauseSpecificDeath == "Dead (attributable to this cancer dx)")
+# Kaplan-Meier plot
+fit <- survfit(surv_object ~ Sex, data = seerEND_clean)
+# Plot Kaplan-Meier curves
+ggsurvplot(fit, data = seerEND_clean, pval = TRUE, conf.int = TRUE, risk.table = TRUE,
+           title = "Kaplan-Meier Survival Curve by Sex", 
+           xlab = "Time (Months)", ylab = "Survival Probability",
+           legend.title = "Histotype",
+           legend.labs = c("Endometroid carcinoma")
+           )
+```
+
+
+## KM plot for Stage
+
+```{r}
+# KM plot by Stage
+km_fit_stage <- survfit(Surv(seerEND_clean$SurvivalMonths, seerEND_clean$CauseSpecificDeath == "Dead (attributable to this cancer dx)") ~ 
+                        seerEND_clean$SummaryStage)
+ggsurvplot(km_fit_stage,
+           data = seerEND_clean,
+           conf.int = TRUE,
+           pval = TRUE,
+           risk.table = TRUE,
+           title = "Kaplan-Meier Survival Curve by Stage",
+           xlab = "Time (Months)",
+           ylab = "Survival Probability",
+           legend.title = "Stage")
+```
+
+
+## KM plot for Race/Ethnicity
+
+```{r}
+# Kaplan Meir plot for Race/Ethnicity
+# Create survival object
+surv_object_race <- Surv(seerEND_clean$SurvivalMonths, seerEND_clean$CauseSpecificDeath == "Dead (attributable to this cancer dx)")
+# Kaplan-Meier fit by Race
+fit_race <- survfit(surv_object_race ~ seerEND_clean$Race)
+# Plot Kaplan-Meier curves
+ggsurvplot(
+  fit_race, 
+  data = seerEND_clean, 
+  pval = TRUE, 
+  conf.int = TRUE, 
+  risk.table = TRUE,
+  title = "Kaplan-Meier Survival Curve by Race",
+  xlab = "Time (Months)", 
+  ylab = "Survival Probability",
+  legend.title = "Race"
+)
+```
+
+## KM plot for Grade
+
+
+```{r}
+# Kaplan Meir plot for Grade
+# Create survival object
+surv_object_grade <- Surv(seerEND_clean$SurvivalMonths, seerEND_clean$CauseSpecificDeath == "Dead (attributable to this cancer dx)")
+# Kaplan-Meier fit by Grade
+fit_grade <- survfit(surv_object_grade ~ seerEND_clean$GradeRecode)
+# Plot Kaplan-Meier curves
+ggsurvplot(
+  fit_grade, 
+  data = seerEND_clean, 
+  pval = TRUE, 
+  conf.int = TRUE, 
+  risk.table = TRUE,
+  title = "Kaplan-Meier Survival Curve by Grade",
+  xlab = "Time (Months)", 
+  ylab = "Survival Probability",
+  legend.title = "Grade"
+)
+```
+
+
+## KM plot for Chemotherapy
+
+```{r}
+# Kaplan Meir plot for Chemotherapy
+# Create survival object
+surv_object_chemo <- Surv(seerEND_clean$SurvivalMonths, seerEND_clean$CauseSpecificDeath == "Dead (attributable to this cancer dx)")
+# Kaplan-Meier fit by Chemotherapy
+fit_chemo <- survfit(surv_object_chemo ~ seerEND_clean$Chemotherapy)
+# Plot Kaplan-Meier curves
+ggsurvplot(
+  fit_chemo, 
+  data = seerEND_clean, 
+  pval = TRUE, 
+  conf.int = TRUE, 
+  risk.table = TRUE,
+  title = "Kaplan-Meier Survival Curve by Chemotherapy",
+  xlab = "Time (Months)", 
+  ylab = "Survival Probability",
+  legend.title = "Chemotherapy"
+)
+```
+
+
+# 3. 8310/3 Clear Cell Adenocarcinoma cancer subtype
+
+## Data filtering
+
+```{r}
+# Data filtering
+library(dplyr)
+seerADE <- seer %>% 
+  filter(`Histologic Type ICD-O-3` == "8310")
+head(seerADE)
+nrow(seerADE)
+```
+
+
+
+```{r}
+# Convert age ranges into a factor with specified levels
+seerADE_clean <- seerADE %>%
+  mutate(AgeGroup = factor(`Age recode with <1 year olds`, 
+                           levels = c("Under 1 year", "1-4 years", "5-9 years", "10-14 years", "15-19 years",
+                                      "20-24 years", "25-29 years", "30-34 years", "35-39 years", "40-44 years",
+                                      "45-49 years", "50-54 years", "55-59 years", "60-64 years", "65-69 years",
+                                      "70-74 years", "75-79 years", "80-84 years", "85+ years")))
+# Age breakdown
+table(seerADE_clean$`Age recode with <1 year olds`)
+# Define numeric midpoints for each age group
+age_midpoints <- c(
+  "Under 1 year" = 0.5, "1-4 years" = 2.5, "5-9 years" = 7, "10-14 years" = 12, "15-19 years" = 17,
+  "20-24 years" = 22, "25-29 years" = 27, "30-34 years" = 32, "35-39 years" = 37, "40-44 years" = 42,
+  "45-49 years" = 47, "50-54 years" = 52, "55-59 years" = 57, "60-64 years" = 62, "65-69 years" = 67,
+  "70-74 years" = 72, "75-79 years" = 77, "80-84 years" = 82, "85+ years" = 87
+)
+# Convert age group to numeric midpoints
+seerADE_clean <- seerADE_clean %>%
+  mutate(AgeNumeric = age_midpoints[AgeGroup])
+# Calculate mean and standard deviation
+mean_age <- mean(seerADE_clean$AgeNumeric, na.rm = TRUE)
+sd_age <- sd(seerADE_clean$AgeNumeric, na.rm = TRUE)
+# Print results
+cat("Mean Age:", mean_age, "\n")
+cat("Standard Deviation of Age:", sd_age, "\n")
+library(tidyquant)
+ggplot(seerADE_clean, aes(x = AgeGroup)) +
+  geom_bar(fill = "skyblue", color = "black") +
+  theme_tq() +
+  labs(title = "Age Distribution in SEER Cohort",
+       x = "Age Group",
+       y = "Frequency") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+
+```{r}
+# Decode the race variable and replace unknown values with NA
+seerADE_clean <- seerADE_clean %>%
+  mutate(Race = case_when(
+    `Race recode (W, B, AI, API)` == 0 ~ "White",
+    `Race recode (W, B, AI, API)` == 1 ~ "Black",
+    `Race recode (W, B, AI, API)` == 2 ~ "American Indian/Alaska Native",
+    `Race recode (W, B, AI, API)` == 3 ~ "Asian or Pacific Islander",
+    TRUE ~ NA_character_  # Treat unknown values as missing (NA)
+  ))
+
+# Remove missing values before plotting
+seerADE_clean <- seerADE_clean %>% filter(!is.na(Race))
+
+# Plot race distribution
+ggplot(seerADE_clean, aes(x = Race)) +
+  geom_bar(fill = "steelblue", color = "black") +
+  theme_minimal() +
+  labs(title = "Race Distribution in SEER Cohort",
+       x = "Race",
+       y = "Frequency") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+
+```{r}
+# Clean and group data, treating "4/unknown" as NA
+seerADE_clean <- seerADE_clean %>%
+  mutate(Grade = case_when(
+    `Grade Recode (thru 2017)` == "Well differentiated; Grade I" ~ "Grade I",
+    `Grade Recode (thru 2017)` == "Moderately differentiated; Grade II" ~ "Grade II",
+    `Grade Recode (thru 2017)` == "Poorly differentiated; Grade III" ~ "Grade III",
+    `Grade Recode (thru 2017)` == "Undifferentiated; anaplastic; Grade IV" ~ "Grade IV",
+    `Grade Recode (thru 2017)` == "4" ~ NA_character_,  # Treat "4/unknown" as missing
+    TRUE ~ NA_character_  # Handle any other unknown values as missing
+  ))
+# Remove missing values before plotting
+seerADE_clean <- seerADE_clean %>% filter(!is.na(Grade))
+# Plot grade distribution
+ggplot(seerADE_clean, aes(x = Grade)) +
+  geom_bar(fill = "cornflowerblue", color = "black") +
+  theme_minimal() +
+  labs(title = "Grade Distribution (thru 2017)",
+       x = "Grade",
+       y = "Frequency") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+
+```{r}
+# Inspect unique values
+unique(seerADE_clean$`Combined Summary Stage (2004+)`)
+
+# Clean the variable by treating "4/unstaged" as missing
+seerADE_clean <- seerADE_clean %>%
+  mutate(Stage = ifelse(`Combined Summary Stage (2004+)` == "4/unstaged", NA, `Combined Summary Stage (2004+)`)) %>%
+  filter(!is.na(Stage)) %>%  # Remove missing values
+  mutate(Stage = factor(Stage))  # Convert to factor
+
+# Plot the cleaned stage variable
+ggplot(seerADE_clean, aes(x = Stage)) +
+  geom_bar(fill = "skyblue", color = "black") +
+  theme_minimal() +
+  labs(title = "Frequency of Combined Summary Stages (2004+)",
+       x = "Stage",
+       y = "Frequency") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+
+```{r}
+# Check the structure of the variable
+str(seerADE_clean$`Time from diagnosis to treatment in days recode`)
+# Clean the variable: Convert numeric values, treat "Unable to calculate" as missing
+seerADE_clean <- seerADE_clean %>%
+  mutate(TimeToTreatment = as.numeric(ifelse(`Time from diagnosis to treatment in days recode` == "Unable to calculate", NA, 
+                                             gsub("[^0-9.]", "",`Time from diagnosis to treatment in days recode`))))
+
+# Inspect the cleaned variable
+summary(seerADE_clean$TimeToTreatment)
+# Handle missing values
+sum(is.na(seerADE_clean$TimeToTreatment))
+# Remove missing data
+seerADE_clean <- seerADE_clean %>%
+  filter(!is.na(TimeToTreatment))
+
+# plot a histogram to show the distribution of time in days to treatment after diagnosis
+ggplot(seerADE_clean, aes(x = TimeToTreatment)) +
+  geom_histogram(binwidth = 10, fill = "steelblue", color = "black") +
+  theme_minimal() +
+  labs(title = "Time from Diagnosis to Treatment",
+       x = "Days",
+       y = "Frequency") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+
+# Kaplan Meier Plots associated with 'Dead (attributable to this cancer dx)' as the event.
+
+```{r}
+# Rename columns for simplicity
+seerADE_clean <- seerADE_clean %>%
+  rename(
+    SurvivalMonths = `Survival months`,
+    CauseSpecificDeath = `SEER cause-specific death classification`,
+    SummaryStage = `Combined Summary Stage (2004+)`,
+    RaceEthnicity = `Race recode (W, B, AI, API)`,
+    GradeRecode = `Grade Recode (thru 2017)`,
+    Chemotherapy = `Chemotherapy recode (yes, no/unk)`
+  )
+```
+
+
+## KM plot for Sex
+
+```{r}
+# KM plot of Sex 
+# Create survival object
+surv_object <- Surv(seerADE_clean$SurvivalMonths, seerADE_clean$CauseSpecificDeath == "Dead (attributable to this cancer dx)")
+# Kaplan-Meier plot
+fit <- survfit(surv_object ~ Sex, data = seerADE_clean)
+# Plot Kaplan-Meier curves
+ggsurvplot(fit, data = seerADE_clean, pval = TRUE, conf.int = TRUE, risk.table = TRUE,
+           title = "Kaplan-Meier Survival Curve by Sex", 
+           xlab = "Time (Months)", ylab = "Survival Probability",
+           legend.title = "Histotype",
+           legend.labs = c("Adenocarcinoma")
+           )
+```
+
+
+## KM plot for Stage
+
+```{r}
+# KM plot by Stage
+km_fit_stage <- survfit(Surv(seerADE_clean$SurvivalMonths, seerADE_clean$CauseSpecificDeath == "Dead (attributable to this cancer dx)") ~ 
+                        seerADE_clean$SummaryStage)
+ggsurvplot(km_fit_stage,
+           data = seerADE_clean,
+           conf.int = TRUE,
+           pval = TRUE,
+           risk.table = TRUE,
+           title = "Kaplan-Meier Survival Curve by Stage",
+           xlab = "Time (Months)",
+           ylab = "Survival Probability",
+           legend.title = "Stage")
+```
+
+
+## KM plot for Race/Ethnicity
+
+```{r}
+# Kaplan Meir plot for Race/Ethnicity
+# Create survival object
+surv_object_race <- Surv(seerADE_clean$SurvivalMonths, seerADE_clean$CauseSpecificDeath == "Dead (attributable to this cancer dx)")
+# Kaplan-Meier fit by Race
+fit_race <- survfit(surv_object_race ~ seerADE_clean$Race)
+# Plot Kaplan-Meier curves
+ggsurvplot(
+  fit_race, 
+  data = seerADE_clean, 
+  pval = TRUE, 
+  conf.int = TRUE, 
+  risk.table = TRUE,
+  title = "Kaplan-Meier Survival Curve by Race",
+  xlab = "Time (Months)", 
+  ylab = "Survival Probability",
+  legend.title = "Race"
+)
+```
+
+## KM plot for Grade
+
+
+```{r}
+# Kaplan Meir plot for Grade
+# Create survival object
+surv_object_grade <- Surv(seerADE_clean$SurvivalMonths, seerADE_clean$CauseSpecificDeath == "Dead (attributable to this cancer dx)")
+# Kaplan-Meier fit by Grade
+fit_grade <- survfit(surv_object_grade ~ seerADE_clean$GradeRecode)
+# Plot Kaplan-Meier curves
+ggsurvplot(
+  fit_grade, 
+  data = seerADE_clean, 
+  pval = TRUE, 
+  conf.int = TRUE, 
+  risk.table = TRUE,
+  title = "Kaplan-Meier Survival Curve by Grade",
+  xlab = "Time (Months)", 
+  ylab = "Survival Probability",
+  legend.title = "Grade"
+)
+```
+
+
+
+## KM plot for Chemotherapy
+
+```{r}
+# Kaplan Meir plot for Chemotherapy
+# Create survival object
+surv_object_chemo <- Surv(seerADE_clean$SurvivalMonths, seerADE_clean$CauseSpecificDeath == "Dead (attributable to this cancer dx)")
+# Kaplan-Meier fit by Chemotherapy
+fit_chemo <- survfit(surv_object_chemo ~ seerADE_clean$Chemotherapy)
+# Plot Kaplan-Meier curves
+ggsurvplot(
+  fit_chemo, 
+  data = seerADE_clean, 
+  pval = TRUE, 
+  conf.int = TRUE, 
+  risk.table = TRUE,
+  title = "Kaplan-Meier Survival Curve by Chemotherapy",
+  xlab = "Time (Months)", 
+  ylab = "Survival Probability",
+  legend.title = "Chemotherapy"
+)
+```
+
+
+
+
+
+
+# Combining the KM plots
+
+```{r}
+# Combined data
+# Data filtering
+library(dplyr)
+# Filter dataset to include only the three cancer subtypes
+seerCO <- seer %>%
+  filter(`Histologic Type ICD-O-3` %in% c("8310", "8980", "8380")) %>%
+  mutate(CancerSubtype = case_when(
+    `Histologic Type ICD-O-3` == "8310" ~ "Clear Cell Adenocarcinoma",
+    `Histologic Type ICD-O-3` == "8980" ~ "Carcinosarcoma, NOS",
+    `Histologic Type ICD-O-3` == "8380" ~ "Endometrioid Carcinoma"
+  ))
+head(seerCO)
+```
+
+
+```{r}
+# Convert age ranges into a factor with specified levels
+seerCO_clean <- seerCO %>%
+  mutate(AgeGroup = factor(`Age recode with <1 year olds`, 
+                           levels = c("Under 1 year", "1-4 years", "5-9 years", "10-14 years", "15-19 years",
+                                      "20-24 years", "25-29 years", "30-34 years", "35-39 years", "40-44 years",
+                                      "45-49 years", "50-54 years", "55-59 years", "60-64 years", "65-69 years",
+                                      "70-74 years", "75-79 years", "80-84 years", "85+ years")))
+# Age breakdown
+table(seerCO_clean$`Age recode with <1 year olds`)
+# Define numeric midpoints for each age group
+age_midpoints <- c(
+  "Under 1 year" = 0.5, "1-4 years" = 2.5, "5-9 years" = 7, "10-14 years" = 12, "15-19 years" = 17,
+  "20-24 years" = 22, "25-29 years" = 27, "30-34 years" = 32, "35-39 years" = 37, "40-44 years" = 42,
+  "45-49 years" = 47, "50-54 years" = 52, "55-59 years" = 57, "60-64 years" = 62, "65-69 years" = 67,
+  "70-74 years" = 72, "75-79 years" = 77, "80-84 years" = 82, "85+ years" = 87
+)
+# Convert age group to numeric midpoints
+seerCO_clean <- seerCO_clean %>%
+  mutate(AgeNumeric = age_midpoints[AgeGroup])
+```
+
+```{r}
+# Decode the race variable and replace unknown values with NA
+seerCO_clean <- seerCO_clean %>%
+  mutate(Race = case_when(
+    `Race recode (W, B, AI, API)` == 0 ~ "White",
+    `Race recode (W, B, AI, API)` == 1 ~ "Black",
+    `Race recode (W, B, AI, API)` == 2 ~ "American Indian/Alaska Native",
+    `Race recode (W, B, AI, API)` == 3 ~ "Asian or Pacific Islander",
+    TRUE ~ NA_character_  # Treat unknown values as missing (NA)
+  ))
+# Remove missing values before plotting
+seerCO_clean <- seerCO_clean %>% filter(!is.na(Race))
+```
+
+
+```{r}
+# Clean and group data, treating "4/unknown" as NA
+seerCO_clean <- seerCO_clean %>%
+  mutate(Grade = case_when(
+    `Grade Recode (thru 2017)` == "Well differentiated; Grade I" ~ "Grade I",
+    `Grade Recode (thru 2017)` == "Moderately differentiated; Grade II" ~ "Grade II",
+    `Grade Recode (thru 2017)` == "Poorly differentiated; Grade III" ~ "Grade III",
+    `Grade Recode (thru 2017)` == "Undifferentiated; anaplastic; Grade IV" ~ "Grade IV",
+    `Grade Recode (thru 2017)` == "4" ~ NA_character_,  # Treat "4/unknown" as missing
+    TRUE ~ NA_character_  # Handle any other unknown values as missing
+  ))
+# Remove missing values before plotting
+seerCO_clean <- seerCO_clean %>% filter(!is.na(Grade))
+```
+
+
+```{r}
+# Clean the variable by treating "4/unstaged" as missing
+seerCO_clean <- seerCO_clean %>%
+  mutate(Stage = ifelse(`Combined Summary Stage (2004+)` == "4/unstaged", NA, `Combined Summary Stage (2004+)`)) %>%
+  filter(!is.na(Stage)) %>%  # Remove missing values
+  mutate(Stage = factor(Stage))  # Convert to factor
+```
+
+
+```{r}
+# Clean the variable: Convert numeric values, treat "Unable to calculate" as missing
+seerCO_clean <- seerCO_clean %>%
+  mutate(TimeToTreatment = as.numeric(ifelse(`Time from diagnosis to treatment in days recode` == "Unable to calculate", NA, 
+                                             gsub("[^0-9.]", "",`Time from diagnosis to treatment in days recode`))))
+# Inspect the cleaned variable
+#summary(seerCO_clean$TimeToTreatment)
+# Handle missing values
+#sum(is.na(seerCO_clean$TimeToTreatment))
+# Remove missing data
+seerCO_clean <- seerCO_clean %>%
+  filter(!is.na(TimeToTreatment))
+```
+
+
+
+```{r}
+# Rename columns for simplicity
+seerCO_clean <- seerCO_clean %>%
+  rename(
+    #SurvivalMonths = `Survival months`,
+    #CauseSpecificDeath = `SEER cause-specific death classification`,
+    #SummaryStage = `Combined Summary Stage (2004+)`,
+    #RaceEthnicity = `Race recode (W, B, AI, API)`,
+    #GradeRecode = `Grade Recode (thru 2017)`,
+    Chemotherapy = `Chemotherapy recode (yes, no/unk)`
+  )
+```
+
+
+
+```{r}
+# Convert variables to factors
+#seerCO_clean <- seerCO_clean %>%
+  #mutate(Stage = as.factor(SummaryStage),
+         #Grade = as.factor(GradeRecode),
+         #Race = as.factor(RaceEthnicity),
+         #Chemotherapy = as.factor(Chemotherapy))
+```
+
+
+```{r}
+# Define survival object
+surv_object <- Surv(seerCO_clean$`Survival months`, 
+                     seerCO_clean$`SEER cause-specific death classification` == "Dead (attributable to this cancer dx)")
+```
+
+
+
+```{r}
+# Kaplan-Meier survival fit by cancer sub type
+km_fit_subtypes <- survfit(surv_object ~ CancerSubtype, data = seerCO_clean)
+# Plot KM curves with all three cancer sub types in one graph
+ggsurvplot(km_fit_subtypes, 
+           data = seerCO_clean, 
+           pval = TRUE, 
+           conf.int = TRUE, 
+           risk.table = TRUE,
+           title = "Kaplan-Meier Survival Curve by Cancer Subtype",
+           xlab = "Time (Months)", 
+           ylab = "Survival Probability",
+           legend.title = "Cancer Subtype",
+           legend.labs = gsub("CancerSubtype=", "", names(km_fit_subtypes$strata)))
+```
+
+
+# Stratified by key variables
+
+# By stage
+
+```{r}
+km_fit_stage <- survfit(surv_object ~ CancerSubtype + Stage, data = seerCO_clean)
+ggsurvplot(km_fit_stage, 
+           data = seerCO_clean, 
+           pval = TRUE, 
+           conf.int = TRUE, 
+           risk.table = TRUE,
+           title = "Kaplan-Meier Survival Curve by Cancer Subtype and Stage",
+           xlab = "Time (Months)", 
+           ylab = "Survival Probability",
+           legend.title = "Cancer Subtype & Stage",
+           legend.labs = gsub("CancerSubtype=", "", gsub("Stage=", "", names(km_fit_stage$strata)))
+)
+```
+
+# By Race/Ethnicity
+
+```{r}
+km_fit_race <- survfit(surv_object ~ CancerSubtype + Race, data = seerCO_clean)
+ggsurvplot(km_fit_race, 
+           data = seerCO_clean, 
+           pval = TRUE, 
+           conf.int = TRUE, 
+           risk.table = TRUE,
+           title = "Kaplan-Meier Survival Curve by Cancer Subtype and Race",
+           xlab = "Time (Months)", 
+           ylab = "Survival Probability",
+           legend.title = "Cancer Subtype & Race",
+           legend.labs = gsub("CancerSubtype=", "", gsub("Race=", "", names(km_fit_race$strata)))
+)
+```
+
+
+
+# By Chemotherapy
+
+
+```{r}
+km_fit_chemo <- survfit(surv_object ~ CancerSubtype + Chemotherapy, data = seerCO_clean)
+ggsurvplot(km_fit_chemo, 
+           data = seerCO_clean, 
+           pval = TRUE, 
+           conf.int = TRUE, 
+           risk.table = TRUE,
+           title = "Kaplan-Meier Survival Curve by Cancer Subtype and Chemotherapy",
+           xlab = "Time (Months)", 
+           ylab = "Survival Probability",
+           legend.title = "Cancer Subtype & Chemotherapy",
+           legend.labs = gsub("CancerSubtype=", "", gsub("Chemotherapy=", "", names(km_fit_chemo$strata))))
+```
+
+
+# By Sex
+
+```{r}
+km_fit_sex <- survfit(surv_object ~ CancerSubtype + Sex, data = seerCO_clean)
+ggsurvplot(km_fit_sex, 
+           data = seerCO_clean, 
+           pval = TRUE, 
+           conf.int = TRUE, 
+           risk.table = TRUE,
+           title = "Kaplan-Meier Survival Curve by Cancer Subtype and Sex",
+           xlab = "Time (Months)", 
+           ylab = "Survival Probability",
+           legend.title = "Cancer Subtype & Sex",
+           legend.labs = gsub("CancerSubtype=", "", gsub("Sex=", "", names(km_fit_sex$strata))))
+```
+
+# By Grade
+
+```{r}
+km_fit_grade <- survfit(surv_object ~ CancerSubtype + Grade, data = seerCO_clean)
+ggsurvplot(km_fit_grade, 
+           data = seerCO_clean, 
+           pval = TRUE, 
+           conf.int = TRUE, 
+           risk.table = TRUE,
+           title = "Kaplan-Meier Survival Curve by Cancer Subtype and Grade",
+           xlab = "Time (Months)", 
+           ylab = "Survival Probability",
+           legend.title = "Cancer Subtype & Grade",
+           legend.labs = gsub("CancerSubtype=", "", gsub("Grade=", "", names(km_fit_grade$strata))))
+```
+
+
+
+# Race - Stacked Bar Plot (Stratified by Cancer Subtype)
+
+```{r}
+ggplot(seerCO_clean, aes(x = Race, fill = CancerSubtype)) +
+  geom_bar(position = "dodge", color = "black") +
+  theme_minimal() +
+  labs(title = "Race Distribution by Cancer Subtype",
+       x = "Race",
+       y = "Count",
+       fill = "Cancer Subtype") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+
+# Age - Bar plot Plot (Stratified by Cancer Subtype)
+
+```{r}
+ggplot(seerCO_clean, aes(x = AgeGroup, fill = CancerSubtype)) +
+  geom_bar(position = "dodge", color = "black") +
+  theme_minimal() +
+  labs(title = "Age Distribution by Cancer Subtype",
+       x = "Age Group",
+       y = "Count") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  facet_wrap(~CancerSubtype)
+```
+
+# Violin plot of Age distribution
+
+```{r}
+ggplot(seerCO_clean, aes(x = CancerSubtype, y = AgeNumeric, fill = CancerSubtype)) +
+  geom_violin(trim = FALSE, alpha = 0.7) +  # Create violin plot with transparency
+  geom_boxplot(width = 0.1, outlier.shape = NA, alpha = 0.5) +  # Add boxplot inside violin plot
+  theme_minimal() +
+  labs(title = "Age Distribution by Cancer Subtype",
+       x = "Cancer Subtype",
+       y = "Patient's Age") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  scale_fill_brewer(palette = "Set1")  # Add color scheme
+```
+
+# Grade - Stacked Bar Plot (Stratified by Cancer Subtype)
+
+```{r}
+ggplot(seerCO_clean, aes(x = Grade, fill = CancerSubtype)) +
+  geom_bar(position = "dodge", color = "black") +
+  theme_minimal() +
+  labs(title = "Grade Distribution by Cancer Subtype",
+       x = "Grade",
+       y = "Count",
+       fill = "Cancer Subtype") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) 
+```
+
+# Stage - Stacked Bar Plot (Stratified by Cancer Subtype)
+
+```{r}
+ggplot(seerCO_clean, aes(x = Stage, fill = CancerSubtype)) +
+  geom_bar(position = "dodge", color = "black") +
+  theme_minimal() +
+  labs(title = "Cancer Stage Distribution by Cancer Subtype",
+       x = "Stage",
+       y = "Count",
+       fill = "Cancer Subtype") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) 
+```
+
+
+# Time to Treatment - Boxplot (Stratified by Cancer Subtype)
+
+```{r}
+ggplot(seerCO_clean, aes(x = CancerSubtype, y = TimeToTreatment, fill = CancerSubtype)) +
+  geom_boxplot() +
+  theme_minimal() +
+  labs(title = "Time from Diagnosis to Treatment by Cancer Subtype",
+       x = "Cancer Subtype",
+       y = "Time to Treatment (Days)") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) 
+```
+
+# Violin plot of time to treatment 
+
+
+```{r}
+ggplot(seerCO_clean, aes(x = CancerSubtype, y = TimeToTreatment, fill = CancerSubtype)) +
+  geom_violin(trim = FALSE, alpha = 0.7) +  # Create violin plot with transparency
+  geom_boxplot(width = 0.1, outlier.shape = NA, alpha = 0.5) +  # Add box plot inside violin plot
+  theme_minimal() +
+  labs(title = "Time to Treatment Distribution by Cancer Subtype",
+       x = "Cancer Subtype",
+       y = "Time to Treatment") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  scale_fill_brewer(palette = "Set3")  # Add color scheme
+```
+
+
+## Violin plot of Survival Months
+
+```{r}
+ggplot(seerCO_clean, aes(x = CancerSubtype, y = `Survival months`, fill = CancerSubtype)) +
+  geom_violin(trim = FALSE, alpha = 0.7) +  # Create violin plot with transparency
+  geom_boxplot(width = 0.1, outlier.shape = NA, alpha = 0.5) +  # Add box plot inside violin plot
+  theme_minimal() +
+  labs(title = "Survival Months Distribution by Cancer Subtype",
+       x = "Cancer Subtype",
+       y = "Survival Months") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  scale_fill_brewer(palette = "Set2")  # Add color scheme
+```
+
+
+# Univariate and Multivariate analysis
+
+## Cox Proportional Hazards Regression Model
+
+### 8980/3: Carcinosarcoma, NOS cancer subtype
+
+```{r}
+library(tidymodels)
+library(ggplot2)
+# Transform the variables to be used in the CPH model
+## Convert key variables to factors
+seerCO_clean$Race <-as.factor(seerCO_clean$Race)
+seerCO_clean$Grade <- as.factor(seerCO_clean$Grade)
+seerCO_clean$Stage <-as.factor(seerCO_clean$Stage)
+seerCO_clean$Chemotherapy <-as.factor(seerCO_clean$Chemotherapy)
+# Summary of 'Year of diagnosis' to look for any anomalies
+summary(seerCO_clean$`Year of diagnosis`)
+# Check for any non-numeric or unexpected values in 'Year of diagnosis'
+unique(seerCO_clean$`Year of diagnosis`)
+# Define the breaks for 5-year intervals based on the actual data range (2005 to 2015)
+breaks = seq(2005, 2020, by = 5)  # Define a break from 2005 to 2020
+# Apply the 'cut' function with the defined breaks
+seerCO_clean$Diagnosis_Period <- cut(seerCO_clean$`Year of diagnosis`, 
+                                   breaks = breaks, 
+                                   right = FALSE, 
+                                   labels = paste(seq(2005, 2015, by = 5), seq(2010, 2020, by = 5), sep = "-"))
+# View the unique values of the Diagnosis Period
+unique(seerCO_clean$Diagnosis_Period)
+# Bar plot for Diagnosis Period distribution
+ggplot(seerCO_clean, aes(x = Diagnosis_Period)) +
+  geom_bar(fill = "lightcoral", color = "black", alpha = 0.7) +
+  labs(title = "Distribution of Cancer subtypes by Diagnosis Period", x = "Diagnosis Period (5-year intervals)", y = "Count") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))  # Rotate x-axis labels for better readability
+```
+
+### Survival Status
+
+```{r}
+seerCO_clean$Survival_Status <- ifelse(seerCO_clean$`SEER cause-specific death classification` == "Dead (attributable to this cancer dx)", 1, 0)
+```
+
+# 8980/3: Carcinosarcoma, NOS cancer subtype
+
+
+```{r}
+library(dplyr)
+seerCA <- seerCO_clean %>% 
+  filter(`Histologic Type ICD-O-3` == "8980")
+head(seerCA)
+```
+
+
+```{r}
+# Define survival object
+surv_object <- Surv(seerCA$`Survival months`, 
+                     seerCA$Survival_Status)
+```
+
+
+## Univariate Cox Propotional Regression Model
+
+### Age
+
+```{r}
+attach(seerCA)
+cox_age <- coxph(surv_object ~ AgeNumeric , data = seerCA)
+summary(cox_age)
+```
+### Chemotherapy 
+
+```{r}
+cox_chemotherapy <- coxph(surv_object ~ Chemotherapy, data = seerCA)
+summary(cox_chemotherapy)
+```
+
+### Stage 
+
+```{r}
+cox_stage <- coxph(surv_object ~ Stage, data = seerCA)
+summary(cox_stage)
+```
+
+
+### Race
+
+```{r}
+cox_race <- coxph(surv_object ~ Race, data = seerCA)
+summary(cox_race)
+```
+
+
+### Grade
+
+```{r}
+cox_grade <- coxph(surv_object ~ Grade, data = seerCA)
+summary(cox_grade)
+```
+
+
+### Diagnosis Year
+
+```{r}
+cox_diagnosis_period <- coxph(surv_object ~ Diagnosis_Period, data = seerCA)
+summary(cox_diagnosis_period)
+```
+
+## Time to Treatment
+
+```{r}
+cox_treatment <- coxph(surv_object ~ TimeToTreatment, data = seerCA)
+summary(cox_treatment)
+```
+
+
+
+```{r}
+library(broom)
+library(flextable)
+library(officer)
+# Extract model results into a tidy format
+results <- list(
+  tidy(cox_age),
+  tidy(cox_chemotherapy),
+  tidy(cox_stage),
+  tidy(cox_diagnosis_period),
+  tidy(cox_treatment),
+  tidy(cox_race),
+  tidy(cox_grade)
+)
+# Combine results into a single data frame
+cox_results <- do.call(rbind, results)
+# Rename columns for better readability
+colnames(cox_results) <- c("Variable", "Coefficient", "HR (exp(coef))", "SE", "z-value", "p-value", "Lower CI", "Upper CI")
+# Create a Word table using flextable
+cox_table <- flextable(cox_results) %>%
+  set_header_labels(
+    Variable = "Predictor",
+    Coefficient = "Coef",
+    `HR (exp(coef))` = "Hazard Ratio",
+    SE = "Std. Error",
+    `z-value` = "Z Score",
+    `p-value` = "P-Value"
+  ) %>%
+  autofit()
+# Export table to a Word document
+doc <- read_docx() %>% 
+  body_add_flextable(cox_table) %>% 
+  body_add_par("Cox Proportional Hazards Model Results", style = "heading 1")
+print(doc, target = "Cox_Regression_Results.docx")
+```
+
+
+## Multivariate CPH
+
+```{r}
+# Multivariate Cox model including Age, Chemotherapy, Stage, and Diagnosis Period
+cox_multivariate <- coxph(surv_object ~ AgeNumeric + Chemotherapy + Stage + Diagnosis_Period + TimeToTreatment + Grade + Race, data = seerCA)
+summary(cox_multivariate)
+# Extract model results into a tidy format
+cox_results <- tidy(cox_multivariate, conf.int = TRUE)
+# Rename columns for better readability
+colnames(cox_results) <- c("Variable", "Coefficient", "HR (exp(coef))", "SE", "z-value", "p-value", "Lower CI", "Upper CI")
+# Create a formatted table using flextable
+cox_table <- flextable(cox_results) %>%
+  set_header_labels(
+    Variable = "Predictor",
+    Coefficient = "Coef",
+    `HR (exp(coef))` = "Hazard Ratio",
+    SE = "Std. Error",
+    `z-value` = "Z Score",
+    `p-value` = "P-Value",
+    `Lower CI` = "Lower 95% CI",
+    `Upper CI` = "Upper 95% CI"
+  ) %>%
+  autofit()
+# Export the table to a Word document
+doc <- read_docx() %>% 
+  body_add_par("Multivariate Cox Proportional Hazards Model Results", style = "heading 1") %>%
+  body_add_flextable(cox_table) 
+# Save the Word document
+print(doc, target = "Cox_Multivariate_Results.docx")
+```
+
+
+# 8380/3 Endometroid Carcinoma cancer subtype
+
+```{r}
+seerEND <- seerCO_clean %>% 
+  filter(`Histologic Type ICD-O-3` == "8380")
+head(seerEND)
+```
+
+
+```{r}
+# Define survival object
+surv_object <- Surv(seerEND$`Survival months`, 
+                     seerEND$Survival_Status)
+```
+
+
+## Univariate Cox Propotional Regression Model
+
+### Age
+
+```{r}
+cox_age <- coxph(surv_object ~ AgeNumeric , data = seerEND)
+summary(cox_age)
+```
+
+```{r}
+cox_chemotherapy <- coxph(surv_object ~ Chemotherapy, data = seerEND)
+summary(cox_chemotherapy)
+```
+
+```{r}
+cox_stage <- coxph(surv_object ~ Stage, data = seerEND)
+summary(cox_stage)
+```
+
+```{r}
+cox_race <- coxph(surv_object ~ Race, data = seerEND)
+summary(cox_race)
+```
+
+```{r}
+cox_grade <- coxph(surv_object ~ Grade, data = seerEND)
+summary(cox_grade)
+```
+
+
+
+```{r}
+cox_diagnosis_period <- coxph(surv_object ~ Diagnosis_Period, data = seerEND)
+summary(cox_diagnosis_period)
+```
+
+
+```{r}
+cox_treatment <- coxph(surv_object ~ TimeToTreatment, data = seerEND)
+summary(cox_treatment)
+```
+
+### Exporting the Model results into tables
+
+```{r}
+# Extract model results into a tidy format
+results <- list(
+  tidy(cox_age),
+  tidy(cox_chemotherapy),
+  tidy(cox_stage),
+  tidy(cox_diagnosis_period),
+  tidy(cox_treatment),
+  tidy(cox_race),
+  tidy(cox_grade)
+)
+# Combine results into a single data frame
+cox_results <- do.call(rbind, results)
+# Rename columns for better readability
+colnames(cox_results) <- c("Variable", "Coefficient", "HR (exp(coef))", "SE", "z-value", "p-value", "Lower CI", "Upper CI")
+# Create a Word table using flextable
+cox_table <- flextable(cox_results) %>%
+  set_header_labels(
+    Variable = "Predictor",
+    Coefficient = "Coef",
+    `HR (exp(coef))` = "Hazard Ratio",
+    SE = "Std. Error",
+    `z-value` = "Z Score",
+    `p-value` = "P-Value"
+  ) %>%
+  autofit()
+# Export table to a Word document
+doc <- read_docx() %>% 
+  body_add_flextable(cox_table) %>% 
+  body_add_par("Cox Proportional Hazards Model Results", style = "heading 1")
+print(doc, target = "Cox_Regression_Results.docx")
+```
+
+
+## Multivariate CPH
+
+```{r}
+# Multivariate Cox model including Age, Chemotherapy, Stage, and Diagnosis Period
+cox_multivariate <- coxph(surv_object ~ AgeNumeric + Chemotherapy + Stage + Diagnosis_Period + TimeToTreatment + Race + Grade, data = seerEND)
+summary(cox_multivariate)
+# Extract model results into a tidy format
+cox_results <- tidy(cox_multivariate, conf.int = TRUE)
+# Rename columns for better readability
+colnames(cox_results) <- c("Variable", "Coefficient", "HR (exp(coef))", "SE", "z-value", "p-value", "Lower CI", "Upper CI")
+# Create a formatted table using flextable
+cox_table <- flextable(cox_results) %>%
+  set_header_labels(
+    Variable = "Predictor",
+    Coefficient = "Coef",
+    `HR (exp(coef))` = "Hazard Ratio",
+    SE = "Std. Error",
+    `z-value` = "Z Score",
+    `p-value` = "P-Value",
+    `Lower CI` = "Lower 95% CI",
+    `Upper CI` = "Upper 95% CI"
+  ) %>%
+  autofit()
+# Export the table to a Word document
+doc <- read_docx() %>% 
+  body_add_par("Multivariate Cox Proportional Hazards Model Results", style = "heading 1") %>%
+  body_add_flextable(cox_table) 
+# Save the Word document
+print(doc, target = "Cox_Multivariate_Results.docx")
+```
+
+
+
+# 8310/3 Clear Cell Adenocarcinoma cancer subtype
+
+```{r}
+seerADE <- seerCO_clean %>% 
+  filter(`Histologic Type ICD-O-3` == "8310")
+head(seerADE)
+```
+
+
+```{r}
+# Define survival object
+surv_object <- Surv(seerADE$`Survival months`, 
+                     seerADE$Survival_Status)
+```
+
+
+## Univariate Cox Propotional Regression Model
+
+### Age
+
+```{r}
+cox_age <- coxph(surv_object ~ AgeNumeric , data = seerADE)
+summary(cox_age)
+```
+
+```{r}
+cox_chemotherapy <- coxph(surv_object ~ Chemotherapy, data = seerADE)
+summary(cox_chemotherapy)
+```
+
+
+```{r}
+cox_stage <- coxph(surv_object ~ Stage, data = seerADE)
+summary(cox_stage)
+```
+
+
+```{r}
+cox_race <- coxph(surv_object ~ Race, data = seerADE)
+summary(cox_race)
+```
+
+
+```{r}
+cox_grade <- coxph(surv_object ~ Grade, data = seerADE)
+summary(cox_grade)
+```
+
+
+```{r}
+cox_diagnosis_period <- coxph(surv_object ~ Diagnosis_Period, data = seerADE)
+summary(cox_diagnosis_period)
+```
+
+
+```{r}
+cox_treatment <- coxph(surv_object ~ TimeToTreatment, data = seerADE)
+summary(cox_treatment)
+```
+
+
+### Exporting the Model results into tables
+
+```{r}
+# Extract model results into a tidy format
+results <- list(
+  tidy(cox_age),
+  tidy(cox_chemotherapy),
+  tidy(cox_stage),
+  tidy(cox_diagnosis_period),
+  tidy(cox_treatment),
+  tidy(cox_race),
+  tidy(cox_grade)
+)
+# Combine results into a single data frame
+cox_results <- do.call(rbind, results)
+# Rename columns for better readability
+colnames(cox_results) <- c("Variable", "Coefficient", "HR (exp(coef))", "SE", "z-value", "p-value")
+# Create a Word table using flextable
+cox_table <- flextable(cox_results) %>%
+  set_header_labels(
+    Variable = "Predictor",
+    Coefficient = "Coef",
+    `HR (exp(coef))` = "Hazard Ratio",
+    SE = "Std. Error",
+    `z-value` = "Z Score",
+    `p-value` = "P-Value"
+  ) %>%
+  autofit()
+# Export table to a Word document
+doc <- read_docx() %>% 
+  body_add_flextable(cox_table) %>% 
+  body_add_par("Cox Proportional Hazards Model Results", style = "heading 1")
+print(doc, target = "Cox_Regression_Results.docx")
+```
+
+
+## Multivariate CPH
+
+```{r}
+# Multivariate Cox model including Age, Chemotherapy, Stage, and Diagnosis Period
+cox_multivariate <- coxph(surv_object ~ AgeNumeric + Chemotherapy + Stage + Diagnosis_Period + TimeToTreatment + Race + Grade, data = seerADE)
+summary(cox_multivariate)
+# Extract model results into a tidy format
+cox_results <- tidy(cox_multivariate, conf.int = TRUE)
+# Rename columns for better readability
+colnames(cox_results) <- c("Variable", "Coefficient", "HR (exp(coef))", "SE", "z-value", "p-value", "Lower CI", "Upper CI")
+# Create a formatted table using flextable
+cox_table <- flextable(cox_results) %>%
+  set_header_labels(
+    Variable = "Predictor",
+    Coefficient = "Coef",
+    `HR (exp(coef))` = "Hazard Ratio",
+    SE = "Std. Error",
+    `z-value` = "Z Score",
+    `p-value` = "P-Value",
+    `Lower CI` = "Lower 95% CI",
+    `Upper CI` = "Upper 95% CI"
+  ) %>%
+  autofit()
+# Export the table to a Word document
+doc <- read_docx() %>% 
+  body_add_par("Multivariate Cox Proportional Hazards Model Results", style = "heading 1") %>%
+  body_add_flextable(cox_table) 
+# Save the Word document
+print(doc, target = "Cox_Multivariate_Results.docx")
+```
+
+
+# Forest Plots
+
+```{r}
+library(forestmodel)
+```
+
+
+```{r}
+# Multivariate Cox model including Age, Chemotherapy, Stage, and Diagnosis Period
+cox_multivariate <- coxph(Surv(`Survival months`, Survival_Status) ~ 
+                              AgeNumeric + Chemotherapy + Stage + Race + Grade + Diagnosis_Period + TimeToTreatment, data = seerCA)
+# Extract model results into a tidy format
+tidy_cox <- tidy(cox_multivariate, conf.int = TRUE)
+# Rename columns for clarity
+colnames(tidy_cox) <- c("Variable", "HR", "SE", "z", "p", "Lower_CI", "Upper_CI")
+# Create a forest plot for Carcinosarcoma (NOS)
+ggplot(tidy_cox, aes(x = HR, y = reorder(Variable, HR))) +
+  geom_point(size = 3, color = "darkred") +
+  geom_errorbarh(aes(xmin = Lower_CI, xmax = Upper_CI), height = 0.2, color = "darkred") + geom_vline(xintercept = 1, linetype = "dashed") +
+  labs(title = "Forest Plot: Carcinosarcoma (NOS)",
+       x = "Hazard Ratio (HR)", y = "Predictors") +
+  theme_minimal()
+```
+
+
+```{r}
+cox_multivariate <- coxph(Surv(`Survival months`, Survival_Status) ~ 
+                              AgeNumeric + Chemotherapy + Stage + Race + Grade + Diagnosis_Period + TimeToTreatment, data = seerEND)
+# Extract model results into a tidy format
+tidy_cox <- tidy(cox_multivariate, conf.int = TRUE)
+# Rename columns for clarity
+colnames(tidy_cox) <- c("Variable", "HR", "SE", "z", "p", "Lower_CI", "Upper_CI")
+# Create a forest plot for Endometrioid carcinoma
+ggplot(tidy_cox, aes(x = HR, y = reorder(Variable, HR))) +
+  geom_point(size = 3, color = "red") +
+  geom_errorbarh(aes(xmin = Lower_CI, xmax = Upper_CI), height = 0.2, color = "red") +
+  geom_vline(xintercept = 1, linetype = "dashed") +
+  labs(title = "Forest Plot: Endometrioid carcinoma",
+       x = "Hazard Ratio (HR)", y = "Predictors") +
+  theme_minimal()
+```
+
+
+
+```{r}
+cox_multivariate <- coxph(Surv(`Survival months`, Survival_Status) ~ 
+                              AgeNumeric + Chemotherapy + Stage + Race + Grade + Diagnosis_Period + TimeToTreatment, data = seerADE)
+# Extract model results into a tidy format
+tidy_cox <- tidy(cox_multivariate, conf.int = TRUE)
+# Rename columns for clarity
+colnames(tidy_cox) <- c("Variable", "HR", "SE", "z", "p", "Lower_CI", "Upper_CI")
+# Create a forest plot for Endometrioid carcinoma
+ggplot(tidy_cox, aes(x = HR, y = reorder(Variable, HR))) +
+  geom_point(size = 3, color = "blue") +
+  geom_errorbarh(aes(xmin = Lower_CI, xmax = Upper_CI), height = 0.2, color = "blue") +
+  geom_vline(xintercept = 1, linetype = "dashed") +
+  labs(title = "Forest Plot: Clear Cell Adenocarcinoma (NOS)",
+       x = "Hazard Ratio (HR)", y = "Predictors") +
+  theme_minimal()
+```
+
+
+
+```{r}
+attach(seerCO_clean)
+library(survminer)
+library(survival)
+# Define a function to extract tidy Cox model results
+extract_cox_results <- function(model, cancer_type) {
+  tidy(model, conf.int = TRUE) %>%
+    mutate(CancerType = cancer_type) %>%
+    rename(Variable = term, HR = estimate, Lower_CI = conf.low, Upper_CI = conf.high)
+}
+# Fit multivariate Cox models for each subtype
+cox_Carcinosarcoma <- coxph(Surv(`Survival months`, Survival_Status) ~ AgeNumeric + Chemotherapy + Stage + Race + Grade +  + TimeToTreatment, data = seerCA)
+cox_Endometrioid <- coxph(Surv(`Survival months`, Survival_Status) ~ AgeNumeric + Chemotherapy + Stage + Race + Grade + Diagnosis_Period + TimeToTreatment, data = seerEND)
+cox_ClearCell <- coxph(Surv(`Survival months`, Survival_Status) ~ AgeNumeric + Chemotherapy + Stage + Race + Grade + Diagnosis_Period + TimeToTreatment, data = seerADE)
+
+# Extract results for each cancer subtype
+results_Carcinosarcoma <- extract_cox_results(cox_Carcinosarcoma, "Carcinosarcoma (NOS)")
+results_Endometrioid <- extract_cox_results(cox_Endometrioid, "Endometrioid Carcinoma")
+results_ClearCell <- extract_cox_results(cox_ClearCell, "Clear Cell Adenocarcinoma")
+
+# Combine all results into one data frame
+combined_results <- bind_rows(results_Carcinosarcoma, results_Endometrioid, results_ClearCell)
+
+# Plot the combined forest plot
+ggplot(combined_results, aes(x = HR, y = reorder(Variable, HR), color = CancerType)) +
+  geom_point(size = 3) +  # HR points
+  geom_errorbarh(aes(xmin = Lower_CI, xmax = Upper_CI), height = 0.2) +  # CI bars
+  geom_vline(xintercept = 1, linetype = "dashed", color = "red") +  # Reference line at HR=1
+  facet_wrap(~CancerType, scales = "free_y") +  # Separate sections for each subtype
+  theme_minimal() +
+  labs(title = "Multivariate Cox Regression Forest Plot for Cancer Subtypes",
+       x = "Hazard Ratio (HR)", y = "Predictors") +
+  theme(axis.text.y = element_text(size = 12),
+        legend.position = "bottom")
+```
+
